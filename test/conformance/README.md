@@ -27,13 +27,15 @@ format, not of the kernel.
 |---|---|---|
 | `name` | yes | unique within the file; `family/name` is the test id. zongzi-derived scenarios keep their golden-scenario id (e.g. `G-AN-01/...`) |
 | `note` | no | free text; ignored by runners. Semantic flips vs zongzi are recorded here |
-| `space` | yes | genesis ids, in order; active at version 0 |
+| `space` | no | genesis ids, in order; active at version 0. Default `[]` (digest/patch scenarios need no space) |
 | `script` | no | list of **batches**; each batch is a list of ops applied atomically, bumping the version by 1 and producing one log entry |
 | `truncate` | no | after the script, drop log entries at or below this version |
 | `warps` | no | warp table for Metric transport (below) |
 | `expect_space_error` | no | the first failing batch must fail with exactly this reason; earlier batches stay applied, later batches are not applied |
 | `expect_version` | no | assert the final head version (catches non-atomic batches) |
 | `cases` | no | list of `{anchor, expect}` transport checks run against the final space |
+| `digest_cases` | no | list of `{base, expect}` canonical-digest checks (below) |
+| `patch_cases` | no | list of `{base, payload, fresh_base, expect}` resolve checks (below) |
 
 ## Ids
 
@@ -107,13 +109,31 @@ JSON has one number type; runners must compare numerically (`2` equals
 `2.0`). Vector authors should still prefer binary-exact values (integers,
 halves, quarters) so exact float implementations compare cleanly.
 
+## Digest and patch cases
+
+`digest_cases` pin the canonical digest itself (spec:
+`docs/spec/canonical-digest.md`):
+
+```json
+{"base": {"ph_1": [6, 12]},
+ "expect": {"status": "ok", "digest": "<lowercase hex, 64 chars>"}}
+{"base": {"onset": 1.5},
+ "expect": {"status": "error", "reason": ["non_canonical", 1.5]}}
+```
+
+`patch_cases` pin the two resolve verdicts. The runner mounts a patch
+from `base` + `payload`, then resolves it against `fresh_base`:
+
+```json
+{"base": {"ph_1": [6, 12]}, "payload": [1], "fresh_base": {"ph_1": [6, 13]},
+ "expect": {"status": "conflict", "reason": "base_changed"}}
+```
+
+`{"status": "ok", "payload": ...}` is the other verdict. A
+non-canonical `fresh_base` is an `error`, never a silent conflict.
+
 ## Deliberately out of scope
 
-- **`Patch` digests.** The Elixir kernel computes digests as
-  `sha256(term_to_binary(base))`, which is BEAM-specific. Portable digest
-  vectors need a canonical digest spec first (e.g. sha256 over canonical
-  JSON of the base). Until then, semantic-survival scenarios are
-  implementation-local.
 - **`Anchor.project/3`** (Relative → Metric) needs caller-supplied element
   spans, which are outside the kernel; vectors cover Relative transport
   only.

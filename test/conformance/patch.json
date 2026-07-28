@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "scenarios": [
+    {
+      "name": "digest/worked_examples",
+      "note": "the same examples as docs/spec/canonical-digest.md — if these drift, one of the two is wrong",
+      "digest_cases": [
+        {
+          "name": "nested maps and lists",
+          "base": {"a": [1, "x"], "b": null},
+          "expect": {"status": "ok", "digest": "854ef06dc57f5dfed10206344ab2d02e0b6c84b0e19436703a5afd0f1f9f2687"}
+        },
+        {
+          "name": "decimal strings (adapter-normalized seconds)",
+          "base": {"ph_1": ["0.1250", "0.2500"], "ph_2": ["0.3750", "0.1250"]},
+          "expect": {"status": "ok", "digest": "6451cb39345cfeef323041aa247be772c4774f00e5c22341c97370ed7a365a0a"}
+        },
+        {
+          "name": "frame integers",
+          "base": {"ph_1": [6, 12], "ph_2": [18, 6]},
+          "expect": {"status": "ok", "digest": "d6122a8fce03ca7a7bb7520ee2624fbedf30800c20851bcb84ccf469d286fe82"}
+        }
+      ]
+    },
+    {
+      "name": "digest/float_rejected",
+      "note": "raw floats never enter the digest; normalization is the channel adapter's obligation (docs/decisions/0005). The error pinpoints the offending value",
+      "digest_cases": [
+        {
+          "name": "float value",
+          "base": {"onset": 1.5},
+          "expect": {"status": "error", "reason": ["non_canonical", 1.5]}
+        },
+        {
+          "name": "nested float",
+          "base": {"ok": [1, {"bad": 2.5}]},
+          "expect": {"status": "error", "reason": ["non_canonical", 2.5]}
+        }
+      ]
+    },
+    {
+      "name": "resolve/base_unchanged_applies",
+      "patch_cases": [
+        {
+          "base": {"ph_1": ["0.1250", "0.2500"]},
+          "payload": {"deltas": [{"id": "ph_1", "onset_delta_ms": -12}]},
+          "fresh_base": {"ph_1": ["0.1250", "0.2500"]},
+          "expect": {"status": "ok", "payload": {"deltas": [{"id": "ph_1", "onset_delta_ms": -12}]}}
+        }
+      ]
+    },
+    {
+      "name": "resolve/any_change_conflicts_no_tolerance",
+      "note": "a value change conflicts; so does a base that only grew — the criterion is whether the base itself is still there, exactly",
+      "patch_cases": [
+        {
+          "name": "value drift",
+          "base": {"ph_1": ["0.1250", "0.2500"]},
+          "payload": [1],
+          "fresh_base": {"ph_1": ["0.1250", "0.2501"]},
+          "expect": {"status": "conflict", "reason": "base_changed"}
+        },
+        {
+          "name": "base grew",
+          "base": {"ph_1": [6, 12]},
+          "payload": [1],
+          "fresh_base": {"ph_1": [6, 12], "ph_2": [18, 6]},
+          "expect": {"status": "conflict", "reason": "base_changed"}
+        }
+      ]
+    },
+    {
+      "name": "resolve/fresh_float_is_error_not_conflict",
+      "note": "a non-canonical fresh base means the adapter failed — reported as an error, never silently treated as base_changed",
+      "patch_cases": [
+        {
+          "base": {"ph_1": [6, 12]},
+          "payload": [1],
+          "fresh_base": {"ph_1": [6.0, 12.0]},
+          "expect": {"status": "error", "reason": ["non_canonical", 6.0]}
+        }
+      ]
+    }
+  ]
+}

@@ -37,13 +37,27 @@ defmodule Tamale.Space do
 
   defstruct ids: [], version: 0, log: [], base_version: 0, seen: MapSet.new()
 
-  @doc "Creates a space. Genesis ids are active at version 0."
-  @spec new([Tamale.id()]) :: t()
+  @doc """
+  Creates a space. Genesis ids are active at version 0.
+
+  Returns `{:error, :duplicate_ids}` when genesis ids repeat — a Caller bug,
+  reported rather than raised so Domain layers keep their no-raise rule.
+  """
+  @spec new([Tamale.id()]) :: {:ok, t()} | {:error, :duplicate_ids}
   def new(ids \\ []) when is_list(ids) do
     if length(ids) == length(Enum.uniq(ids)) do
-      %__MODULE__{ids: ids, seen: MapSet.new(ids)}
+      {:ok, %__MODULE__{ids: ids, seen: MapSet.new(ids)}}
     else
-      raise ArgumentError, "duplicate ids in genesis"
+      {:error, :duplicate_ids}
+    end
+  end
+
+  @doc "Raising variant of `new/1`, for tests and known-good genesis lists."
+  @spec new!([Tamale.id()]) :: t()
+  def new!(ids \\ []) when is_list(ids) do
+    case new(ids) do
+      {:ok, space} -> space
+      {:error, reason} -> raise ArgumentError, "invalid genesis ids: #{inspect(reason)}"
     end
   end
 

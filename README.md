@@ -43,6 +43,10 @@ The kernel holds no domain data, no music theory, no engine contract.
   `Tamale.Warp`), `Relative` (identity + offset interval).
 - **`Tamale.Patch`** — semantic survival: `(base_digest, payload)`.
   Digest match → apply; mismatch → conflict. No tolerance, ever.
+  Digests are canonical and portable (`Tamale.Digest`; spec:
+  `docs/spec/canonical-digest.md`) — floats are rejected at the digest
+  boundary, because normalizing domain values into canonical form is
+  the channel adapter's job (`docs/decisions/0005`).
 
 ## Invariants
 
@@ -71,22 +75,34 @@ Working and tested:
     host)
 - `Warp` algebra: `from_segments/1` (monotonicity-validated assembly),
   `compose/2`, `invert/1`, `map_interval/2`
-- `Patch` digest resolve
+- `Patch` digest resolve over canonical digests (`Tamale.Digest` —
+  floats/structs/tuples rejected; atom keys encoded by name; spec +
+  worked examples in `docs/spec/canonical-digest.md`)
 - `ChannelAdapter.warp_payload/2` — the single channel-adapter callback
-- JSON conformance vectors (`test/conformance/`, format v1): 28 scenarios
-  across space/ordinal/metric/relative, seeded from zongzi's
-  `GOLDEN_SCENARIOS.md` including the deliberate semantic flips
+- JSON conformance vectors (`test/conformance/`, format v1): 33 scenarios
+  across space/ordinal/metric/relative/digest/resolve, seeded from
+  zongzi's `GOLDEN_SCENARIOS.md` including the deliberate semantic flips
   (G-AN-02 merge, G-INT-05 seconds anchor). The Elixir implementation is
   now the reference runner; other languages implement against the vectors.
 
+Guides and specs:
+
+- `docs/zh/guide/caller-guide-zh.md` — the Caller orchestration contract
+  (also the equinox migration manual): trio layout, edit-loop op
+  conventions, two-phase survival, warp/digest obligations, engine
+  protocol requirements, self-check list
+- `docs/spec/canonical-digest.md` — portable digest spec v1
+
 Not yet (roughly in order):
 
-1. Chunked base digests (conflict localization) at the policy layer
+1. Warp-provider reference example (tempo map / span tables → segments;
+   adapter layer, mapping open for discussion)
 2. `diff(old, new)` fallback adapter — the one sanctioned home for
    heuristics, for edits that arrive as raw states (import, reload,
    collaboration)
-3. A canonical digest spec (e.g. sha256 over canonical JSON) so `Patch`
-   can join the conformance vectors — see `test/conformance/README.md`
+3. Chunked digest helper — the pattern is settled
+   (`docs/decisions/0006`); an optional policy-layer helper module may
+   follow the first real channel
 
 Design decisions: `docs/decisions/`.
 

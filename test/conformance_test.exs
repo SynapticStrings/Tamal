@@ -5,12 +5,21 @@ defmodule Tamale.ConformanceRunner do
 
   import ExUnit.Assertions
 
-  alias Tamale.{Space, Transport, Warp}
+  alias Tamale.{Digest, Patch, Space, Transport, Warp}
+
+  @doc false
+  # OTP `:json.decode` maps JSON null to the atom `:null`; vectors mean `nil`.
+  def deep_from_json(map) when is_map(map),
+    do: Map.new(map, fn {k, v} -> {k, deep_from_json(v)} end)
+
+  def deep_from_json(list) when is_list(list), do: Enum.map(list, &deep_from_json/1)
+  def deep_from_json(:null), do: nil
+  def deep_from_json(term), do: term
   alias Tamale.Anchor.{Metric, Ordinal, Relative}
   alias Tamale.Op.{Delete, Insert, Merge, Move, Retime, Split}
 
   def run(scenario) do
-    space = scenario |> Map.fetch!("space") |> Space.new()
+    {:ok, space} = scenario |> Map.get("space", []) |> Space.new()
     space = apply_script(space, Map.get(scenario, "script", []), scenario)
     space = maybe_truncate(space, scenario)
 
@@ -23,17 +32,60 @@ defmodule Tamale.ConformanceRunner do
 
     for kase <- Map.get(scenario, "cases", []) do
       anchor = decode_anchor(Map.fetch!(kase, "anchor"))
+
       actual = anchor |> dispatch(space, provider) |> encode_result()
       expected = kase |> Map.fetch!("expect") |> normalize_expected()
 
-      unless json_eq?(actual, expected) do
-        flunk("""
-        conformance case failed#{case_label(kase)}
-          anchor:   #{inspect(anchor)}
-          expected: #{inspect(expected, limit: :infinity)}
-          actual:   #{inspect(actual, limit: :infinity)}
-        """)
-      end
+      assert_json_eq(actual, expected, kase, "anchor:   #{inspect(anchor)}")
+    end
+
+    for kase <- Map.get(scenario, "digest_cases", []) do
+      base = Map.fetch!(kase, "base")
+
+      actual =
+        case Digest.digest(base) do
+          {:ok, digest} -> %{"status" => "ok", "digest" => digest}
+          {:error, reason} -> %{"status" => "error", "reason" => encode_term(reason)}
+        end
+
+      assert_json_eq(actual, Map.fetch!(kase, "expect"), kase, "base:     #{inspect(base)}")
+    end
+
+    for kase <- Map.get(scenario, "patch_cases", []) do
+      base = Map.fetch!(kase, "base")
+      fresh_base = Map.fetch!(kase, "fresh_base")
+
+      actual =
+        with {:ok, patch} <- Patch.new(base, Map.get(kase, "payload")) do
+          Patch.resolve(patch, fresh_base)
+        end
+        |> encode_patch_result()
+
+      assert_json_eq(
+        actual,
+        Map.fetch!(kase, "expect"),
+        kase,
+        "base:     #{inspect(base)}\n  fresh:    #{inspect(fresh_base)}"
+      )
+    end
+  end
+
+  defp encode_patch_result({:ok, payload}), do: %{"status" => "ok", "payload" => payload}
+
+  defp encode_patch_result({:conflict, reason}),
+    do: %{"status" => "conflict", "reason" => encode_term(reason)}
+
+  defp encode_patch_result({:error, reason}),
+    do: %{"status" => "error", "reason" => encode_term(reason)}
+
+  defp assert_json_eq(actual, expected, kase, context) do
+    unless json_eq?(actual, expected) do
+      flunk("""
+      conformance case failed#{case_label(kase)}
+        #{context}
+        expected: #{inspect(expected, limit: :infinity)}
+        actual:   #{inspect(actual, limit: :infinity)}
+      """)
     end
   end
 
@@ -272,7 +324,9 @@ defmodule Tamale.ConformanceTest do
 
   for file <- @files do
     @external_resource file
-    %{"scenarios" => scenarios} = file |> File.read!() |> :json.decode()
+    %{"scenarios" => scenarios} =
+      file |> File.read!() |> :json.decode() |> Tamale.ConformanceRunner.deep_from_json()
+
     family = Path.basename(file, ".json")
 
     for scenario <- scenarios do
