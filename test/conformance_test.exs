@@ -5,7 +5,7 @@ defmodule Tamale.ConformanceRunner do
 
   import ExUnit.Assertions
 
-  alias Tamale.{Digest, Patch, Space, Transport, Warp}
+  alias Tamale.{Coord, Digest, Patch, Space, Transport, Warp}
 
   @doc false
   # OTP `:json.decode` maps JSON null to the atom `:null`; vectors mean `nil`.
@@ -151,9 +151,18 @@ defmodule Tamale.ConformanceRunner do
     do: %Move{id: id, after_id: decode_after(after_id)}
 
   defp decode_op(%{"op" => "retime", "id" => id, "old_span" => [s, e], "new_span" => [s2, e2]}),
-    do: %Retime{id: id, old_span: {s, e}, new_span: {s2, e2}}
+    do: %Retime{id: id, old_span: {coord!(s), coord!(e)}, new_span: {coord!(s2), coord!(e2)}}
 
   defp decode_op(other), do: raise("undecodable op in vector: #{inspect(other)}")
+
+  # Coordinates on the wire are JSON integers or "num/den" strings
+  # (Tamale.Coord); floats are a vector-authoring error.
+  defp coord!(value) do
+    case Coord.decode(value) do
+      {:ok, coord} -> coord
+      {:error, reason} -> raise "invalid coordinate in vector: #{inspect(reason)}"
+    end
+  end
 
   defp decode_after("head"), do: :head
   defp decode_after(id), do: id
@@ -171,8 +180,8 @@ defmodule Tamale.ConformanceRunner do
   defp decode_anchor(%{"type" => "metric"} = a) do
     %Metric{
       coord: Map.fetch!(a, "coord"),
-      from: Map.fetch!(a, "from"),
-      to: Map.fetch!(a, "to"),
+      from: coord!(Map.fetch!(a, "from")),
+      to: coord!(Map.fetch!(a, "to")),
       at_version: Map.get(a, "at_version", 0)
     }
   end
@@ -180,8 +189,8 @@ defmodule Tamale.ConformanceRunner do
   defp decode_anchor(%{"type" => "relative"} = a) do
     %Relative{
       ref: Map.fetch!(a, "ref"),
-      from_offset: Map.fetch!(a, "from_offset"),
-      to_offset: Map.fetch!(a, "to_offset"),
+      from_offset: coord!(Map.fetch!(a, "from_offset")),
+      to_offset: coord!(Map.fetch!(a, "to_offset")),
       at_version: Map.get(a, "at_version", 0)
     }
   end
@@ -209,7 +218,7 @@ defmodule Tamale.ConformanceRunner do
         segments ->
           segs =
             Enum.map(segments, fn %{"old" => [o0, o1], "new" => [n0, n1]} ->
-              {{o0, o1}, {n0, n1}}
+              {{coord!(o0), coord!(o1)}, {coord!(n0), coord!(n1)}}
             end)
 
           case Warp.from_segments(segs) do
@@ -231,7 +240,7 @@ defmodule Tamale.ConformanceRunner do
     %{
       "status" => "clip",
       "covered" => Enum.map(covered, &encode_anchor/1),
-      "lost" => Enum.map(lost, fn {f, t} -> [f, t] end)
+      "lost" => Enum.map(lost, fn {f, t} -> [Coord.encode(f), Coord.encode(t)] end)
     }
   end
 
@@ -256,8 +265,8 @@ defmodule Tamale.ConformanceRunner do
     do: %{
       "type" => "metric",
       "coord" => a.coord,
-      "from" => a.from,
-      "to" => a.to,
+      "from" => Coord.encode(a.from),
+      "to" => Coord.encode(a.to),
       "at_version" => a.at_version
     }
 
@@ -265,8 +274,8 @@ defmodule Tamale.ConformanceRunner do
     do: %{
       "type" => "relative",
       "ref" => a.ref,
-      "from_offset" => a.from_offset,
-      "to_offset" => a.to_offset,
+      "from_offset" => Coord.encode(a.from_offset),
+      "to_offset" => Coord.encode(a.to_offset),
       "at_version" => a.at_version
     }
 
@@ -294,8 +303,9 @@ defmodule Tamale.ConformanceRunner do
 
   # ---- comparison ----
 
-  # JSON has one number type; vectors must not distinguish 2 from 2.0.
-  # Prefer binary-exact values (integers, halves, quarters) anyway.
+  # Coordinates are integers or "p/q" strings on the wire and compare as
+  # exact terms. Bare JSON numbers still appear as ids and versions;
+  # compare those numerically (2 equals 2.0) for authoring tolerance.
   defp json_eq?(a, b) when is_number(a) and is_number(b), do: a == b
 
   defp json_eq?(a, b) when is_map(a) and is_map(b) do

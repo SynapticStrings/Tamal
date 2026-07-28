@@ -10,8 +10,8 @@
       ],
       "cases": [
         {
-          "anchor": {"type": "relative", "ref": 2, "from_offset": -0.08, "to_offset": 0.05},
-          "expect": {"status": "ok", "anchor": {"type": "relative", "ref": 2, "from_offset": -0.08, "to_offset": 0.05, "at_version": 1}}
+          "anchor": {"type": "relative", "ref": 2, "from_offset": "-2/25", "to_offset": "1/20"},
+          "expect": {"status": "ok", "anchor": {"type": "relative", "ref": 2, "from_offset": "-2/25", "to_offset": "1/20", "at_version": 1}}
         }
       ]
     },
@@ -23,7 +23,7 @@
       ],
       "cases": [
         {
-          "anchor": {"type": "relative", "ref": 2, "from_offset": 0, "to_offset": 0.05},
+          "anchor": {"type": "relative", "ref": 2, "from_offset": 0, "to_offset": "1/20"},
           "expect": {"status": "undefined", "reason": ["deleted", 2]}
         }
       ]
@@ -36,8 +36,8 @@
       ],
       "cases": [
         {
-          "anchor": {"type": "relative", "ref": 2, "from_offset": 0, "to_offset": 0.05},
-          "expect": {"status": "ok", "anchor": {"type": "relative", "ref": 2, "from_offset": 0, "to_offset": 0.05, "at_version": 1}}
+          "anchor": {"type": "relative", "ref": 2, "from_offset": 0, "to_offset": "1/20"},
+          "expect": {"status": "ok", "anchor": {"type": "relative", "ref": 2, "from_offset": 0, "to_offset": "1/20", "at_version": 1}}
         }
       ]
     },
@@ -50,8 +50,8 @@
       ],
       "cases": [
         {
-          "anchor": {"type": "relative", "ref": 3, "from_offset": -0.08, "to_offset": 0.05},
-          "expect": {"status": "ok", "anchor": {"type": "relative", "ref": 2, "from_offset": -0.08, "to_offset": 0.05, "at_version": 1}}
+          "anchor": {"type": "relative", "ref": 3, "from_offset": "-2/25", "to_offset": "1/20"},
+          "expect": {"status": "ok", "anchor": {"type": "relative", "ref": 2, "from_offset": "-2/25", "to_offset": "1/20", "at_version": 1}}
         }
       ]
     }

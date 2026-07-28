@@ -203,6 +203,14 @@ defmodule Tamale.Space do
     |> Enum.member?(run)
   end
 
-  defp valid_span?({s, e}), do: is_number(s) and is_number(e) and s < e
+  defp valid_span?({s, e}) do
+    with {:ok, s} <- Tamale.Coord.cast(s),
+         {:ok, e} <- Tamale.Coord.cast(e) do
+      Tamale.Coord.lt?(s, e)
+    else
+      _ -> false
+    end
+  end
+
   defp valid_span?(_), do: false
 end

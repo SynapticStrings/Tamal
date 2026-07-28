@@ -40,7 +40,9 @@ The kernel holds no domain data, no music theory, no engine contract.
   {:ambiguous, candidates} | {:undefined, reason}`. Anchor shapes:
   `Ordinal` (identity, with an `adjacent?` predicate for boundary
   anchors), `Metric` (coordinate intervals, transported by
-  `Tamale.Warp`), `Relative` (identity + offset interval).
+  `Tamale.Warp`), `Relative` (identity + offset interval). Coordinates
+  are exact rationals (`Tamale.Coord`; `docs/decisions/0007`) — integers
+  promote, floats are rejected everywhere, same doctrine as the digest.
 - **`Tamale.Patch`** — semantic survival: `(base_digest, payload)`.
   Digest match → apply; mismatch → conflict. No tolerance, ever.
   Digests are canonical and portable (`Tamale.Digest`; spec:
@@ -73,17 +75,22 @@ Working and tested:
   - `Relative` (Ordinal-rule host transport; absolute interval derived
     via `Anchor.project/3`; offsets may be negative and overhang the
     host)
-- `Warp` algebra: `from_segments/1` (monotonicity-validated assembly),
-  `compose/2`, `invert/1`, `map_interval/2`
+- `Warp` algebra over exact rational coordinates (`Tamale.Coord`):
+  `from_segments/1` (monotonicity-validated assembly), `compose/2`,
+  `invert/1`, `map_interval/2` — a 1/3 tempo produces thirds, never
+  float dust
 - `Patch` digest resolve over canonical digests (`Tamale.Digest` —
   floats/structs/tuples rejected; atom keys encoded by name; spec +
   worked examples in `docs/spec/canonical-digest.md`)
 - `ChannelAdapter.warp_payload/2` — the single channel-adapter callback
-- JSON conformance vectors (`test/conformance/`, format v1): 33 scenarios
+- JSON conformance vectors (`test/conformance/`, format v1): 35 scenarios
   across space/ordinal/metric/relative/digest/resolve, seeded from
   zongzi's `GOLDEN_SCENARIOS.md` including the deliberate semantic flips
-  (G-AN-02 merge, G-INT-05 seconds anchor). The Elixir implementation is
-  now the reference runner; other languages implement against the vectors.
+  (G-AN-02 merge, G-INT-05 seconds anchor). Coordinates travel as
+  integers or `"num/den"` strings; the metric family pins exact rational
+  arithmetic (thirds, composed fractional scales). The Elixir
+  implementation is now the reference runner; other languages implement
+  against the vectors.
 
 Guides and specs:
 

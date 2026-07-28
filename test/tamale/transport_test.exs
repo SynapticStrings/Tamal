@@ -103,7 +103,7 @@ defmodule Tamale.TransportTest do
 
     metric = %Metric{coord: :tick, from: 5, to: 10, at_version: 0}
 
-    assert {:ok, %Metric{from: 7.5, to: 15.0, at_version: 1}} =
+    assert {:ok, %Metric{from: {15, 2}, to: {15, 1}, at_version: 1}} =
              Transport.transport(metric, s, provider)
   end
 
@@ -119,7 +119,7 @@ defmodule Tamale.TransportTest do
 
     metric = %Metric{coord: :tick, from: 0, to: 10, at_version: 0}
 
-    assert {:ok, %Metric{from: 10.0, to: 20.0, at_version: 2}} =
+    assert {:ok, %Metric{from: {10, 1}, to: {20, 1}, at_version: 2}} =
              Transport.transport(metric, s, provider)
   end
 
@@ -130,7 +130,7 @@ defmodule Tamale.TransportTest do
     provider = fn :tick, _entry -> Warp.from_span({0, 10}, {0, 10}) end
     metric = %Metric{coord: :tick, from: 5, to: 15, at_version: 0}
 
-    assert {:clip, [%Metric{from: 5.0, to: 10.0, at_version: 1}], [{10, 15}]} =
+    assert {:clip, [%Metric{from: {5, 1}, to: {10, 1}, at_version: 1}], [{{10, 1}, {15, 1}}]} =
              Transport.transport(metric, s, provider)
   end
 
@@ -141,11 +141,24 @@ defmodule Tamale.TransportTest do
     assert {:undefined, :outside_warp} = Transport.transport(metric, s, provider)
   end
 
-  test "metric anchor at head is returned unchanged and the provider is not called" do
+  test "metric anchor at head is returned normalized and the provider is not called" do
     s = Space.new!([:a])
     metric = %Metric{coord: :tick, from: 3, to: 8, at_version: 0}
     provider = fn _coord, _entry -> raise "provider must not be called" end
-    assert {:ok, ^metric} = Transport.transport(metric, s, provider)
+
+    assert {:ok, %Metric{from: {3, 1}, to: {8, 1}, at_version: 0}} =
+             Transport.transport(metric, s, provider)
+  end
+
+  test "metric anchors reject float endpoints and inverted intervals" do
+    s = Space.new!([:a])
+    provider = fn _coord, _entry -> Warp.identity() end
+
+    assert {:error, {:invalid_coordinate, 0.5}} =
+             Transport.transport(%Metric{coord: :tick, from: 0.5, to: 8}, s, provider)
+
+    assert {:error, :invalid_interval} =
+             Transport.transport(%Metric{coord: :tick, from: 8, to: 3}, s, provider)
   end
 
   # ---- Relative ----
@@ -154,8 +167,15 @@ defmodule Tamale.TransportTest do
     {:ok, s} = Space.new!([:a, :b]) |> Space.apply_op(%Insert{id: :c, after_id: :b})
     anchor = %Relative{ref: :b, from_offset: -5, to_offset: 10, at_version: 0}
 
-    assert {:ok, %Relative{ref: :b, from_offset: -5, to_offset: 10, at_version: 1}} =
+    assert {:ok, %Relative{ref: :b, from_offset: {-5, 1}, to_offset: {10, 1}, at_version: 1}} =
              Transport.transport(anchor, s)
+  end
+
+  test "relative anchors reject float offsets" do
+    s = Space.new!([:a])
+    anchor = %Relative{ref: :a, from_offset: 0, to_offset: 0.05}
+
+    assert {:error, {:invalid_coordinate, 0.05}} = Transport.transport(anchor, s)
   end
 
   test "relative anchor dies with its host" do
@@ -180,7 +200,7 @@ defmodule Tamale.TransportTest do
 
     span_fun = fn :a -> {150, 250} end
 
-    assert {:ok, %Metric{from: 120, to: 160}} =
+    assert {:ok, %Metric{from: {120, 1}, to: {160, 1}}} =
              Tamale.Anchor.project(transported, :tick, span_fun)
   end
 end

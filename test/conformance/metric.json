@@ -39,7 +39,7 @@
       "cases": [
         {
           "anchor": {"type": "metric", "coord": "seconds", "from": 1, "to": 3},
-          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "seconds", "from": 0.5, "to": 1.5, "at_version": 1}}
+          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "seconds", "from": "1/2", "to": "3/2", "at_version": 1}}
         }
       ]
     },
@@ -64,8 +64,8 @@
           "expect": {
             "status": "clip",
             "covered": [
-              {"type": "metric", "coord": "seconds", "from": 2.5, "to": 5, "at_version": 1},
-              {"type": "metric", "coord": "seconds", "from": 10, "to": 12.5, "at_version": 1}
+              {"type": "metric", "coord": "seconds", "from": "5/2", "to": 5, "at_version": 1},
+              {"type": "metric", "coord": "seconds", "from": 10, "to": "25/2", "at_version": 1}
             ],
             "lost": [[10, 20]]
           }
@@ -130,6 +130,51 @@
         {
           "anchor": {"type": "metric", "coord": "tick", "from": 4, "to": 12},
           "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "tick", "from": 102, "to": 106, "at_version": 2}}
+        }
+      ]
+    },
+    {
+      "name": "fractional_rates_are_exact",
+      "note": "docs/decisions/0007: coordinates are exact rationals — a 1/3 tempo produces thirds, never float dust; p/q strings are first-class on the wire",
+      "space": [1],
+      "script": [
+        [{"op": "retime", "id": 1, "old_span": [0, 3], "new_span": [0, 1]}]
+      ],
+      "warps": [
+        {"coord": "seconds", "entry": 1,
+         "segments": [{"old": [0, 3], "new": [0, 1]}]}
+      ],
+      "cases": [
+        {
+          "name": "integer endpoints become thirds",
+          "anchor": {"type": "metric", "coord": "seconds", "from": 1, "to": 2},
+          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "seconds", "from": "1/3", "to": "2/3", "at_version": 1}}
+        },
+        {
+          "name": "rational endpoints stay exact",
+          "anchor": {"type": "metric", "coord": "seconds", "from": "1/2", "to": 1},
+          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "seconds", "from": "1/6", "to": "1/3", "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "fractional_compose_is_exact",
+      "note": "composing a 1/2 scale with a 1/3 scale yields exactly 1/6 — the fold accumulates no rounding across entries",
+      "space": [1],
+      "script": [
+        [{"op": "retime", "id": 1, "old_span": [0, 12], "new_span": [0, 6]}],
+        [{"op": "retime", "id": 1, "old_span": [0, 6], "new_span": [0, 2]}]
+      ],
+      "warps": [
+        {"coord": "tick", "entry": 1,
+         "segments": [{"old": [0, 12], "new": [0, 6]}]},
+        {"coord": "tick", "entry": 2,
+         "segments": [{"old": [0, 6], "new": [0, 2]}]}
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "metric", "coord": "tick", "from": 2, "to": 4},
+          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "tick", "from": "1/3", "to": "2/3", "at_version": 2}}
         }
       ]
     }

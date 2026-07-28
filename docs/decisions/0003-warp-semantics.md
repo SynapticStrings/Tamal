@@ -45,3 +45,6 @@ zongzi 的 GOLDEN_SCENARIOS 钉死了两条现状，warp 会翻转它们：
 由内核校验）已在内核 `Tamale.Warp` 落地；`Anchor.Metric` transport 沿
 日志折叠 Caller 提供的 warp。tempo map / 元素 span 表 → segments 的
 换算属 adapter 层。
+
+（坐标表示在 0007 收紧为精确有理数：插值与复合不积浮点尘埃，
+conformance 向量可逐字节复现。）

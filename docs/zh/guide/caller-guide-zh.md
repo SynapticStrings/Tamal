@@ -96,6 +96,10 @@ end
 - Metric 锚需要 warp provider：`(coord, log_entry) -> Warp.t()`。
   没列 warp 的条目按 identity 处理。tempo map 变化、元素 span 变化
   → warp 的换算在适配层（参考 metric 族向量的 G-INT-03/05 场景）。
+- 坐标一律是 `Tamale.Coord` 精确有理数（0007）：整数直接可用，分数
+  写 `{num, den}`；float 进不了内核（Metric 端点、Relative offset、
+  Retime span、warp segments 都会被拒）。秒 → 微秒整数、帧 → 帧号
+  的归一化在适配层完成，舍入只发生在最终消费点。
 - 判死的 patch 不要删——以冲突形式交给用户决定（强制重挂或放弃）。
 
 ## 5. Patch.resolve：渲染时的语义判死

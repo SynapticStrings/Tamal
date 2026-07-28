@@ -46,12 +46,14 @@ defmodule Tamale.Transport do
 
   A Relative anchor is its host ref: transported with Ordinal rules,
   offsets untouched (a host stretch does not rescale "0–50 ms after the
-  start"). The absolute interval is derived at use time from the host's
-  current span — see `Tamale.Anchor.project/3`. Offsets may be negative
-  and may overhang the host; there is no within-host invariant.
+  start"). Offsets are cast to rational coordinates at entry — floats are
+  `{:error, {:invalid_coordinate, value}}`. The absolute interval is
+  derived at use time from the host's current span — see
+  `Tamale.Anchor.project/3`. Offsets may be negative and may overhang the
+  host; there is no within-host invariant.
   """
 
-  alias Tamale.{Anchor, Space, Warp}
+  alias Tamale.{Anchor, Coord, Space, Warp}
   alias Tamale.Anchor.{Metric, Ordinal, Relative}
   alias Tamale.Op.{Delete, Merge, Split}
 
@@ -85,11 +87,18 @@ defmodule Tamale.Transport do
   end
 
   def transport(%Relative{ref: ref} = anchor, %Space{} = space) do
-    probe = %Ordinal{refs: [ref], at_version: anchor.at_version}
+    with {:ok, from_offset} <- Coord.cast(anchor.from_offset),
+         {:ok, to_offset} <- Coord.cast(anchor.to_offset) do
+      probe = %Ordinal{refs: [ref], at_version: anchor.at_version}
 
-    case transport(probe, space) do
-      {:ok, %Ordinal{refs: [ref], at_version: v}} -> {:ok, %{anchor | ref: ref, at_version: v}}
-      other -> other
+      case transport(probe, space) do
+        {:ok, %Ordinal{refs: [ref], at_version: v}} ->
+          {:ok,
+           %{anchor | ref: ref, from_offset: from_offset, to_offset: to_offset, at_version: v}}
+
+        other ->
+          other
+      end
     end
   end
 
@@ -105,11 +114,20 @@ defmodule Tamale.Transport do
   Transports a `Tamale.Anchor.Metric` along the log, folding the warps the
   provider supplies for each entry (`coord` is passed through so one
   provider can serve several coordinate systems).
+
+  The interval endpoints are cast to rational coordinates up front:
+  floats are `{:error, {:invalid_coordinate, value}}`, and `from > to` is
+  `{:error, :invalid_interval}`.
   """
   @spec transport(Metric.t(), Space.t(), warp_provider()) :: result() | {:error, term()}
   def transport(%Metric{coord: coord} = anchor, %Space{} = space, warp_provider)
       when is_function(warp_provider, 2) do
-    with {:ok, entries} <- Space.log_from(space, anchor.at_version) do
+    with {:ok, from} <- Coord.cast(anchor.from),
+         {:ok, to} <- Coord.cast(anchor.to),
+         :ok <- check_interval(from, to),
+         {:ok, entries} <- Space.log_from(space, anchor.at_version) do
+      anchor = %{anchor | from: from, to: to}
+
       total =
         Enum.reduce(entries, Warp.identity(), fn entry, acc ->
           Warp.compose(warp_provider.(coord, entry), acc)
@@ -131,6 +149,10 @@ defmodule Tamale.Transport do
           {:undefined, :outside_warp}
       end
     end
+  end
+
+  defp check_interval(from, to) do
+    if Coord.gt?(from, to), do: {:error, :invalid_interval}, else: :ok
   end
 
   # ---- per-op ref remapping ----

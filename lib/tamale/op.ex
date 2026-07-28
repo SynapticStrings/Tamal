@@ -61,13 +61,17 @@ defmodule Tamale.Op do
     Re-time `id` from `old_span` to `new_span` (`{start, stop}` in the
     space's native coordinate). Identity and order are untouched; the spans
     exist so the adapter layer can build warps for `Anchor.Metric`.
+
+    Spans are coordinates (`Tamale.Coord`): integers and `{num, den}`
+    rationals are accepted, floats are rejected with `:invalid_span` at
+    `Tamale.Space.apply_batch/2`.
     """
     defstruct [:id, :old_span, :new_span]
 
     @type t :: %__MODULE__{
             id: Tamale.id(),
-            old_span: {number(), number()},
-            new_span: {number(), number()}
+            old_span: {Tamale.Coord.input(), Tamale.Coord.input()},
+            new_span: {Tamale.Coord.input(), Tamale.Coord.input()}
           }
   end
 

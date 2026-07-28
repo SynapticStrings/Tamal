@@ -84,6 +84,16 @@ defmodule Tamale.SpaceTest do
              Space.apply_op(s, %Retime{id: :a, old_span: {0, 10}, new_span: {20, 10}})
   end
 
+  test "retime accepts rational spans and rejects floats" do
+    s = Space.new!([:a])
+
+    assert {:ok, _} =
+             Space.apply_op(s, %Retime{id: :a, old_span: {0, {3, 1}}, new_span: {0, {1, 1}}})
+
+    assert {:error, :invalid_span} =
+             Space.apply_op(s, %Retime{id: :a, old_span: {0.0, 10}, new_span: {0, 20}})
+  end
+
   test "truncate hides history below the base version" do
     {:ok, s} = Space.new!([:a]) |> Space.apply_op(%Insert{id: :b, after_id: :a})
     s = Space.truncate(s, 1)

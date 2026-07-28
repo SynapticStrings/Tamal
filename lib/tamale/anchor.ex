@@ -52,13 +52,16 @@ defmodule Tamale.Anchor do
     kernel holds no element spans and no tempo map. Partial coverage is a
     first-class result: `{:clip, covered, lost}` — see
     `Tamale.Transport`. Semantics: `docs/decisions/0003-warp-semantics.md`.
+
+    Endpoints are exact rational coordinates (`Tamale.Coord`): integers
+    are promoted, floats are rejected at transport time.
     """
     defstruct coord: nil, from: 0, to: 0, at_version: 0
 
     @type t :: %__MODULE__{
             coord: term(),
-            from: number(),
-            to: number(),
+            from: Tamale.Coord.input(),
+            to: Tamale.Coord.input(),
             at_version: Tamale.version()
           }
   end
@@ -73,14 +76,16 @@ defmodule Tamale.Anchor do
     Offsets are absolute from the element's start, are **not** rescaled
     when the host stretches, and may be negative or overhang the host
     ("80 ms before phoneme 3 starts" — preutterance). There is no
-    within-host invariant.
+    within-host invariant. Offsets are exact rational coordinates
+    (`Tamale.Coord`): integers are promoted, floats are rejected at
+    transport time.
     """
     defstruct ref: nil, from_offset: 0, to_offset: 0, at_version: 0
 
     @type t :: %__MODULE__{
             ref: Tamale.id(),
-            from_offset: number(),
-            to_offset: number(),
+            from_offset: Tamale.Coord.input(),
+            to_offset: Tamale.Coord.input(),
             at_version: Tamale.version()
           }
   end
@@ -94,23 +99,30 @@ defmodule Tamale.Anchor do
   Offsets may be negative and may overhang the host (preutterance); there
   is no within-host invariant. What an overhanging interval *means* for
   survival is judged later, by warp (`Tamale.Warp.map_interval/2` clip
-  semantics), not here.
+  semantics), not here. Offsets and the span are cast to rational
+  coordinates; floats are `{:error, {:invalid_coordinate, value}}`.
   """
-  @spec project(Relative.t(), term(), (Tamale.id() -> {number(), number()} | nil)) ::
-          {:ok, Metric.t()} | {:error, {:unknown_id, Tamale.id()}}
+  @spec project(
+          Relative.t(),
+          term(),
+          (Tamale.id() -> {Tamale.Coord.input(), Tamale.Coord.input()} | nil)
+        ) ::
+          {:ok, Metric.t()} | {:error, {:unknown_id, Tamale.id()} | {:invalid_coordinate, term()}}
   def project(%Relative{} = anchor, coord, span_fun) when is_function(span_fun, 1) do
-    case span_fun.(anchor.ref) do
-      {start, _stop} ->
-        {:ok,
-         %Metric{
-           coord: coord,
-           from: start + anchor.from_offset,
-           to: start + anchor.to_offset,
-           at_version: anchor.at_version
-         }}
-
-      nil ->
-        {:error, {:unknown_id, anchor.ref}}
+    with {:ok, from_offset} <- Tamale.Coord.cast(anchor.from_offset),
+         {:ok, to_offset} <- Tamale.Coord.cast(anchor.to_offset),
+         {start, _stop} <- span_fun.(anchor.ref),
+         {:ok, start} <- Tamale.Coord.cast(start) do
+      {:ok,
+       %Metric{
+         coord: coord,
+         from: Tamale.Coord.add(start, from_offset),
+         to: Tamale.Coord.add(start, to_offset),
+         at_version: anchor.at_version
+       }}
+    else
+      nil -> {:error, {:unknown_id, anchor.ref}}
+      {:error, _} = err -> err
     end
   end
 end

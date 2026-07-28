@@ -57,8 +57,8 @@ front of the order where an op takes an `after_id`.
 
 ```json
 {"type": "ordinal",  "refs": [1, 2], "adjacent": false, "at_version": 0}
-{"type": "metric",   "coord": "seconds", "from": 1.0, "to": 3.0, "at_version": 0}
-{"type": "relative", "ref": 2, "from_offset": -0.08, "to_offset": 0.05, "at_version": 0}
+{"type": "metric",   "coord": "seconds", "from": 1, "to": "5/2", "at_version": 0}
+{"type": "relative", "ref": 2, "from_offset": "-2/25", "to_offset": "1/20", "at_version": 0}
 ```
 
 `adjacent` defaults to `false`, `at_version` to `0`. In expected results the
@@ -103,11 +103,22 @@ Warps attach to **log entries**, so an edit that moves no ids still needs a
 batch to be transport-visible: a pure tempo change enters the log as
 `retime` batches of the affected elements.
 
-## Numbers
+## Coordinates
 
-JSON has one number type; runners must compare numerically (`2` equals
-`2.0`). Vector authors should still prefer binary-exact values (integers,
-halves, quarters) so exact float implementations compare cleanly.
+Every coordinate a vector carries — Metric `from`/`to`, Relative
+offsets, `retime` spans, warp segment endpoints, `lost` intervals — is an
+exact rational (`Tamale.Coord`, `docs/decisions/0007`). On the wire:
+
+- a JSON integer when the denominator is 1 — `4` means 4/1
+- a `"num/den"` string otherwise — `"4/3"` means 4/3
+
+Floats have no wire form: runners must reject them in coordinate
+positions, and kernel math is exact, so `"1/3"` means precisely one third
+— implementations reproduce transported anchors bit-for-bit using exact
+rational arithmetic (e.g. BigInt pairs), with no float anywhere.
+
+Bare JSON numbers still appear as **ids and versions**; there runners
+compare numerically (`2` equals `2.0`).
 
 ## Digest and patch cases
 
