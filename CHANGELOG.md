@@ -1,0 +1,50 @@
+# Changelog
+
+All notable changes are documented here. While 0.x, breaking changes may
+land in any minor bump — they are always listed under **Breaking
+Changes**, and any semantic change ships with new or updated conformance
+vectors (a silent semantic flip is a test failure by construction).
+
+## 0.1.0 — unreleased
+
+The initial kernel line: four concepts, exact rational coordinates,
+canonical digests, JSON conformance vectors.
+
+### Added
+
+- **`Tamale.Space`** — versioned identity space: stable never-reused ids,
+  atomic op batches (`{:error, reason}` tuples throughout), an append-only
+  log that doubles as the tombstone record, `truncate/2` as log-age GC.
+  (`c1c72ee`)
+- **`Tamale.Op`** — edit intent as a first-class script:
+  `Insert / Delete / Split / Merge / Move / Retime`, with kernel identity
+  conventions (a split's first child inherits the parent id; a merge's
+  `into` is `hd(ids)`). (`c1c72ee`)
+- **`Tamale.Anchor` + `Tamale.Transport`** — rebase as transport along
+  the log: `{:ok, anchor'} | {:clip, covered, lost} |
+  {:ambiguous, candidates} | {:undefined, reason}`. Shapes: `Ordinal`
+  (conjunctive refs, head-state adjacency), `Metric` (warp-fold
+  transport, first-class clip), `Relative` (Ordinal-rule host transport +
+  `Anchor.project/3`). (`c1c72ee`, `52b6fa3`)
+- **`Tamale.Warp`** — monotone partial maps: `from_segments/1`
+  (monotonicity-validated assembly), `compose/2`, `invert/1`,
+  `map_interval/2`. (`c1c72ee`)
+- **`Tamale.Coord`** — exact rational coordinates `{num, den}`: integers
+  promote, floats are rejected at every kernel entry point (Metric /
+  Relative anchors, `Retime` spans, warp segments, `Anchor.project/3`).
+  Wire form: JSON integer when `den == 1`, `"num/den"` string otherwise.
+  (`644d849`)
+- **`Tamale.Patch` + `Tamale.Digest`** — semantic survival via canonical
+  digests (spec v1: `docs/spec/canonical-digest.md`); floats, tuples and
+  structs rejected at the digest boundary. (`12ecbf2`)
+- **`Tamale.ChannelAdapter`** — the single kernel-mandated channel
+  callback, `warp_payload/2`. (`c1c72ee`)
+- **JSON conformance vectors (format v1)** — 35 scenarios across
+  space/ordinal/metric/relative/digest/resolve, seeded from zongzi's
+  golden scenarios including the deliberate semantic flips (G-AN-02,
+  G-INT-05), plus exact-rational pins (`fractional_rates_are_exact`,
+  `fractional_compose_is_exact`). Format spec:
+  `test/conformance/README.md`. (`52b6fa3`, `644d849`)
+- **Docs** — decision records `docs/decisions/0001`–`0007`; Chinese
+  caller guide (`docs/zh/guide/caller-guide-zh.md`): the Caller
+  orchestration contract. (`12ecbf2`, `644d849`)
