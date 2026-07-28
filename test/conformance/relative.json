@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "scenarios": [
+    {
+      "name": "G-PRE/host_stretch_does_not_rescale_offsets",
+      "note": "docs/decisions/0004: '0-50ms after the start of phoneme 3' anchors the start coordinate, not a ratio; offsets may be negative and overhang the host (preutterance)",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "retime", "id": 2, "old_span": [10, 20], "new_span": [20, 40]}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "relative", "ref": 2, "from_offset": -0.08, "to_offset": 0.05},
+          "expect": {"status": "ok", "anchor": {"type": "relative", "ref": 2, "from_offset": -0.08, "to_offset": 0.05, "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "host_deleted_is_terminal",
+      "space": [1, 2],
+      "script": [
+        [{"op": "delete", "id": 2}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "relative", "ref": 2, "from_offset": 0, "to_offset": 0.05},
+          "expect": {"status": "undefined", "reason": ["deleted", 2]}
+        }
+      ]
+    },
+    {
+      "name": "host_split_continues_on_first_child",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "split", "id": 2, "children": [2, 4]}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "relative", "ref": 2, "from_offset": 0, "to_offset": 0.05},
+          "expect": {"status": "ok", "anchor": {"type": "relative", "ref": 2, "from_offset": 0, "to_offset": 0.05, "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "host_merged_remaps_ref_onto_into",
+      "note": "the host ref follows Ordinal rules end to end — including merge remapping — not just at_version tracking",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "merge", "ids": [2, 3], "into": 2}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "relative", "ref": 3, "from_offset": -0.08, "to_offset": 0.05},
+          "expect": {"status": "ok", "anchor": {"type": "relative", "ref": 2, "from_offset": -0.08, "to_offset": 0.05, "at_version": 1}}
+        }
+      ]
+    }
+  ]
+}

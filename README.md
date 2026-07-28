@@ -73,14 +73,20 @@ Working and tested:
   `compose/2`, `invert/1`, `map_interval/2`
 - `Patch` digest resolve
 - `ChannelAdapter.warp_payload/2` — the single channel-adapter callback
+- JSON conformance vectors (`test/conformance/`, format v1): 28 scenarios
+  across space/ordinal/metric/relative, seeded from zongzi's
+  `GOLDEN_SCENARIOS.md` including the deliberate semantic flips
+  (G-AN-02 merge, G-INT-05 seconds anchor). The Elixir implementation is
+  now the reference runner; other languages implement against the vectors.
 
 Not yet (roughly in order):
 
 1. Chunked base digests (conflict localization) at the policy layer
-2. JSON conformance vectors — `{space₀, script, anchors} → {survived,
-   conflicts, transported anchors}` — seeded from zongzi's
-   `GOLDEN_SCENARIOS.md`; the Elixir implementation should degrade to
-   reference implementation once the vectors exist
+2. `diff(old, new)` fallback adapter — the one sanctioned home for
+   heuristics, for edits that arrive as raw states (import, reload,
+   collaboration)
+3. A canonical digest spec (e.g. sha256 over canonical JSON) so `Patch`
+   can join the conformance vectors — see `test/conformance/README.md`
 
 Design decisions: `docs/decisions/`.
 

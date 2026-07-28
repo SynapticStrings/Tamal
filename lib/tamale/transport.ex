@@ -88,7 +88,7 @@ defmodule Tamale.Transport do
     probe = %Ordinal{refs: [ref], at_version: anchor.at_version}
 
     case transport(probe, space) do
-      {:ok, %Ordinal{at_version: v}} -> {:ok, %{anchor | at_version: v}}
+      {:ok, %Ordinal{refs: [ref], at_version: v}} -> {:ok, %{anchor | ref: ref, at_version: v}}
       other -> other
     end
   end

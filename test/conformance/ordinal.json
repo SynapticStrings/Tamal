@@ -1,0 +1,171 @@
+{
+  "format": 1,
+  "scenarios": [
+    {
+      "name": "G-AN-03/delete_is_terminal",
+      "note": "zongzi relocates orphans via ScoredHost scoring; tamale kernel reports undefined — relocation is policy, not transport",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "delete", "id": 2}]
+      ],
+      "cases": [
+        {
+          "name": "referencing the deleted id",
+          "anchor": {"type": "ordinal", "refs": [2]},
+          "expect": {"status": "undefined", "reason": ["deleted", 2]}
+        },
+        {
+          "name": "unrelated ref survives",
+          "anchor": {"type": "ordinal", "refs": [1]},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [1], "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "conjunctive_refs_lose_any_die",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "delete", "id": 3}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [1, 3]},
+          "expect": {"status": "undefined", "reason": ["deleted", 3]}
+        }
+      ]
+    },
+    {
+      "name": "split_continues_on_first_child",
+      "note": "kernel convention: the first child inherits the parent's id",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "split", "id": 2, "children": [2, 4]}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [2]},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [2], "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "G-AN-02/merge_survives_onto_into",
+      "note": "SEMANTIC FLIP vs zongzi: there a merged-away focus dies as merged_away; tamale remaps refs onto into and lets Patch.resolve judge semantically",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "merge", "ids": [2, 3], "into": 2}]
+      ],
+      "cases": [
+        {
+          "name": "ref on the merged-away id",
+          "anchor": {"type": "ordinal", "refs": [3]},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [2], "at_version": 1}}
+        },
+        {
+          "name": "refs spanning the merge deduplicate",
+          "anchor": {"type": "ordinal", "refs": [2, 3]},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [2], "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "G-AN-01/adjacency_survives_insert_elsewhere",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "insert", "id": 4, "after_id": 3}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [1, 2], "adjacent": true},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [1, 2], "adjacent": true, "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "G-AN-01/adjacency_broken_on_insert_between",
+      "note": "the boundary anchor A|B as a first-class predicate, not a neighbor-similarity heuristic",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "insert", "id": 4, "after_id": 1}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [1, 2], "adjacent": true},
+          "expect": {"status": "undefined", "reason": "adjacency_broken"}
+        }
+      ]
+    },
+    {
+      "name": "adjacency_broken_on_move_between",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "move", "id": 3, "after_id": 1}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [1, 2], "adjacent": true},
+          "expect": {"status": "undefined", "reason": "adjacency_broken"}
+        }
+      ]
+    },
+    {
+      "name": "move_and_retime_leave_identity_untouched",
+      "note": "G-INT-06 structure side: drag + tempo change do not touch identity anchors",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "move", "id": 1, "after_id": 3}],
+        [{"op": "retime", "id": 2, "old_span": [10, 20], "new_span": [30, 40]}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [2]},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [2], "at_version": 2}}
+        }
+      ]
+    },
+    {
+      "name": "unknown_ref_at_head_is_error",
+      "note": "a ref not live at head indicates a Caller bug at mount time — reported, not silently kept",
+      "space": [1, 2],
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [9]},
+          "expect": {"status": "error", "reason": ["unknown_ref", 9]}
+        }
+      ]
+    },
+    {
+      "name": "future_version_is_error",
+      "space": [1],
+      "script": [
+        [{"op": "insert", "id": 2, "after_id": 1}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [1], "at_version": 5},
+          "expect": {"status": "error", "reason": ["future_version", 5]}
+        }
+      ]
+    },
+    {
+      "name": "folds_across_batches",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "split", "id": 2, "children": [2, 4]}],
+        [{"op": "merge", "ids": [4, 3], "into": 4}]
+      ],
+      "cases": [
+        {
+          "name": "untouched by the split, remapped by the merge",
+          "anchor": {"type": "ordinal", "refs": [3]},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [4], "at_version": 2}}
+        },
+        {
+          "name": "split survivor untouched by the merge",
+          "anchor": {"type": "ordinal", "refs": [2]},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [2], "at_version": 2}}
+        }
+      ]
+    }
+  ]
+}

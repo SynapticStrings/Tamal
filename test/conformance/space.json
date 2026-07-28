@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "scenarios": [
+    {
+      "name": "validation/id_reused_after_delete",
+      "note": "ids are never reused; a deleted id stays dead",
+      "space": [1, 2],
+      "script": [
+        [{"op": "delete", "id": 1}],
+        [{"op": "insert", "id": 1, "after_id": 2}]
+      ],
+      "expect_space_error": ["id_reused", 1],
+      "expect_version": 1
+    },
+    {
+      "name": "validation/duplicate_insert",
+      "space": [1],
+      "script": [
+        [{"op": "insert", "id": 1, "after_id": 1}]
+      ],
+      "expect_space_error": ["duplicate_id", 1],
+      "expect_version": 0
+    },
+    {
+      "name": "validation/delete_unknown",
+      "space": [1],
+      "script": [
+        [{"op": "delete", "id": 9}]
+      ],
+      "expect_space_error": ["unknown_id", 9],
+      "expect_version": 0
+    },
+    {
+      "name": "validation/merge_not_adjacent",
+      "space": [1, 2, 3],
+      "script": [
+        [{"op": "merge", "ids": [1, 3], "into": 1}]
+      ],
+      "expect_space_error": "merge_not_adjacent",
+      "expect_version": 0
+    },
+    {
+      "name": "validation/split_first_child_must_inherit",
+      "note": "kernel convention: hd(children) == id, not policy",
+      "space": [1],
+      "script": [
+        [{"op": "split", "id": 1, "children": [2, 3]}]
+      ],
+      "expect_space_error": "split_identity",
+      "expect_version": 0
+    },
+    {
+      "name": "validation/batch_is_atomic",
+      "note": "delete 1 must NOT land even though it precedes the failing op",
+      "space": [1, 2],
+      "script": [
+        [{"op": "delete", "id": 1}, {"op": "delete", "id": 9}]
+      ],
+      "expect_space_error": ["unknown_id", 9],
+      "expect_version": 0,
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [1]},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [1], "at_version": 0}}
+        }
+      ]
+    },
+    {
+      "name": "G-TL-02/truncated_log_reports_explicitly",
+      "note": "truncate/2 below the oldest live anchor version replaces reference-counted GC; anchors older than the horizon get an explicit error, never a silent misjudgment",
+      "space": [1, 2],
+      "script": [
+        [{"op": "delete", "id": 2}]
+      ],
+      "truncate": 1,
+      "cases": [
+        {
+          "name": "anchor older than the horizon",
+          "anchor": {"type": "ordinal", "refs": [1], "at_version": 0},
+          "expect": {"status": "error", "reason": "log_truncated"}
+        },
+        {
+          "name": "anchor at the horizon transports fine",
+          "anchor": {"type": "ordinal", "refs": [1], "at_version": 1},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [1], "at_version": 1}}
+        }
+      ]
+    }
+  ]
+}

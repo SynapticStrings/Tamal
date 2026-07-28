@@ -1,0 +1,137 @@
+{
+  "format": 1,
+  "scenarios": [
+    {
+      "name": "G-INT-03/tempo_change_uniform_scale",
+      "note": "a pure tempo change enters the log as retime batches of the affected elements; the warp comes from the caller's tempo map",
+      "space": [1, 2],
+      "script": [
+        [
+          {"op": "retime", "id": 1, "old_span": [0, 10], "new_span": [0, 5]},
+          {"op": "retime", "id": 2, "old_span": [10, 20], "new_span": [5, 10]}
+        ]
+      ],
+      "warps": [
+        {"coord": "seconds", "entry": 1,
+         "segments": [{"old": [0, 20], "new": [0, 10]}]}
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "metric", "coord": "seconds", "from": 4, "to": 12},
+          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "seconds", "from": 2, "to": 6, "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "G-INT-05/seconds_anchor_survives_tempo_change",
+      "note": "SEMANTIC FLIP vs zongzi (docs/decisions/0003): zongzi conflicts here (snapshot_stale); tamale survives structurally and defers the semantic verdict to Patch.resolve",
+      "space": [1, 2],
+      "script": [
+        [
+          {"op": "retime", "id": 1, "old_span": [0, 10], "new_span": [0, 5]},
+          {"op": "retime", "id": 2, "old_span": [10, 20], "new_span": [5, 10]}
+        ]
+      ],
+      "warps": [
+        {"coord": "seconds", "entry": 1,
+         "segments": [{"old": [0, 20], "new": [0, 10]}]}
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "metric", "coord": "seconds", "from": 1, "to": 3},
+          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "seconds", "from": 0.5, "to": 1.5, "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "deleted_region_clips_and_drops",
+      "note": "G-PRE family: partial survival is first-class; covered anchors are new-coordinate images, lost sub-intervals are old-coordinate. Measure-zero coverage does not count",
+      "space": [1, 2],
+      "script": [
+        [{"op": "retime", "id": 1, "old_span": [0, 30], "new_span": [0, 15]}]
+      ],
+      "warps": [
+        {"coord": "seconds", "entry": 1,
+         "segments": [
+           {"old": [0, 10], "new": [0, 5]},
+           {"old": [20, 30], "new": [10, 15]}
+         ]}
+      ],
+      "cases": [
+        {
+          "name": "straddling the deleted region",
+          "anchor": {"type": "metric", "coord": "seconds", "from": 5, "to": 25},
+          "expect": {
+            "status": "clip",
+            "covered": [
+              {"type": "metric", "coord": "seconds", "from": 2.5, "to": 5, "at_version": 1},
+              {"type": "metric", "coord": "seconds", "from": 10, "to": 12.5, "at_version": 1}
+            ],
+            "lost": [[10, 20]]
+          }
+        },
+        {
+          "name": "entirely inside the deleted region",
+          "anchor": {"type": "metric", "coord": "seconds", "from": 12, "to": 18},
+          "expect": {"status": "undefined", "reason": "outside_warp"}
+        }
+      ]
+    },
+    {
+      "name": "insertion_stretches_anchor",
+      "note": "a jump in the warp (new material inserted) grows the anchor to enclose it; what happens to the payload is ChannelAdapter.warp_payload's call",
+      "space": [1],
+      "script": [
+        [{"op": "retime", "id": 1, "old_span": [0, 20], "new_span": [0, 30]}]
+      ],
+      "warps": [
+        {"coord": "tick", "entry": 1,
+         "segments": [
+           {"old": [0, 10], "new": [0, 10]},
+           {"old": [10, 20], "new": [20, 30]}
+         ]}
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "metric", "coord": "tick", "from": 5, "to": 15},
+          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "tick", "from": 5, "to": 25, "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "identity_when_no_warp_listed",
+      "note": "entries without a listed warp default to identity — most ops do not move coordinates",
+      "space": [1],
+      "script": [
+        [{"op": "insert", "id": 2, "after_id": 1}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "metric", "coord": "tick", "from": 0, "to": 10},
+          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "tick", "from": 0, "to": 10, "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "multi_entry_folds_oldest_first",
+      "note": "entry 1 scales by 1/2, entry 2 translates by +100; the fold applies them chronologically",
+      "space": [1, 2],
+      "script": [
+        [{"op": "retime", "id": 1, "old_span": [0, 10], "new_span": [0, 5]}],
+        [{"op": "retime", "id": 2, "old_span": [10, 20], "new_span": [110, 120]}]
+      ],
+      "warps": [
+        {"coord": "tick", "entry": 1,
+         "segments": [{"old": [0, 100], "new": [0, 50]}]},
+        {"coord": "tick", "entry": 2,
+         "segments": [{"old": [0, 50], "new": [100, 150]}]}
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "metric", "coord": "tick", "from": 4, "to": 12},
+          "expect": {"status": "ok", "anchor": {"type": "metric", "coord": "tick", "from": 102, "to": 106, "at_version": 2}}
+        }
+      ]
+    }
+  ]
+}
