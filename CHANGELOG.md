@@ -10,6 +10,14 @@ vectors (a silent semantic flip is a test failure by construction).
 The initial kernel line: four concepts, exact rational coordinates,
 canonical digests, JSON conformance vectors.
 
+### Breaking Changes
+
+- **`Warp.at/2` and `Warp.map_interval/3` return error tuples** instead
+  of raising on invalid coordinates or inverted intervals
+  (`{:error, {:invalid_coordinate, value}}` /
+  `{:error, :invalid_interval}`); the raising variants are `Warp.at!/2`
+  and `Warp.map_interval!/3`. (`fd74d5c`)
+
 ### Added
 
 - **`Tamale.Space`** — versioned identity space: stable never-reused ids,
@@ -39,12 +47,22 @@ canonical digests, JSON conformance vectors.
   structs rejected at the digest boundary. (`12ecbf2`)
 - **`Tamale.ChannelAdapter`** — the single kernel-mandated channel
   callback, `warp_payload/2`. (`c1c72ee`)
-- **JSON conformance vectors (format v1)** — 35 scenarios across
+- **`Transport.fold_warp/4`** — the warp `transport/3` folds internally
+  is now public (and transport delegates to it), so
+  `ChannelAdapter.warp_payload/2` receives exactly the folded warp.
+  (`fd74d5c`)
+- **`boundary_merged`** — an `adjacent?` anchor whose refs are collapsed
+  by a `Merge` dies with `{:undefined, :boundary_merged}` (the boundary
+  it names is gone); plain conjunctive refs still deduplicate onto
+  `into` (G-AN-02). Pinned by the new G-AN-03 vectors. `Merge` also
+  rejects duplicate ids with `:merge_duplicate_ids`. (`fd74d5c`)
+- **JSON conformance vectors (format v1)** — 36 scenarios across
   space/ordinal/metric/relative/digest/resolve, seeded from zongzi's
   golden scenarios including the deliberate semantic flips (G-AN-02,
   G-INT-05), plus exact-rational pins (`fractional_rates_are_exact`,
-  `fractional_compose_is_exact`). Format spec:
-  `test/conformance/README.md`. (`52b6fa3`, `644d849`)
+  `fractional_compose_is_exact`) and boundary-merge semantics (G-AN-03).
+  Format spec:
+  `test/conformance/README.md`. (`52b6fa3`, `644d849`, `fd74d5c`)
 - **Docs** — decision records `docs/decisions/0001`–`0007`; Chinese
   caller guide (`docs/zh/guide/caller-guide-zh.md`): the Caller
   orchestration contract. (`12ecbf2`, `644d849`)
