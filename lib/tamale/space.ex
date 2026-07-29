@@ -165,6 +165,7 @@ defmodule Tamale.Space do
     cond do
       length(merge_ids) < 2 -> {:error, :merge_trivial}
       into != hd(merge_ids) -> {:error, :merge_into}
+      length(merge_ids) != length(Enum.uniq(merge_ids)) -> {:error, :merge_duplicate_ids}
       unknown != nil -> {:error, {:unknown_id, unknown}}
       not adjacent_run?(ids, merge_ids) -> {:error, :merge_not_adjacent}
       true -> {:ok, ids -- tl(merge_ids), seen}

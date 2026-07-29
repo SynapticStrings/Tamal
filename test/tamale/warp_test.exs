@@ -49,12 +49,21 @@ defmodule Tamale.WarpTest do
     assert_raise ArgumentError, fn -> Warp.from_span({0.0, 10}, {0, 10}) end
   end
 
-  test "at and map_interval raise on float queries" do
+  test "at and map_interval report invalid coordinates as errors" do
     w = Warp.from_span({0, 10}, {0, 10})
-    assert_raise ArgumentError, fn -> Warp.at(w, 5.0) end
-    assert_raise ArgumentError, fn -> Warp.map_interval(w, 0, 5.5) end
-    assert_raise ArgumentError, fn -> Warp.map_interval(w, 5, 0) end
+    assert {:error, {:invalid_coordinate, 5.0}} = Warp.at(w, dyn(5.0))
+    assert {:error, {:invalid_coordinate, 5.5}} = Warp.map_interval(w, 0, dyn(5.5))
+    assert {:error, :invalid_interval} = Warp.map_interval(w, 5, 0)
   end
+
+  test "at! and map_interval! raise on invalid coordinates" do
+    w = Warp.from_span({0, 10}, {0, 10})
+    assert_raise ArgumentError, fn -> Warp.at!(w, dyn(5.0)) end
+    assert_raise ArgumentError, fn -> Warp.map_interval!(w, 0, dyn(5.5)) end
+    assert_raise ArgumentError, fn -> Warp.map_interval!(w, 5, 0) end
+  end
+
+  defp dyn(x), do: x
 
   test "compose applies inner then outer, defined on the intersection" do
     inner = Warp.from_span({0, 10}, {0, 20})

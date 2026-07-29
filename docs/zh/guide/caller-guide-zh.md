@@ -87,7 +87,8 @@ case Transport.transport(patch.anchor, space) do
                             原样上浮，由 channel 判收不收（0004）
   {:ambiguous, cands} -> 一对多：内核约定不产生，策略层才有
   {:undefined, reason} -> 判死：{:deleted, id} / :adjacency_broken /
-                          :outside_warp —— 上浮为冲突，不静默处理
+                          :boundary_merged / :outside_warp —— 上浮为冲突，
+                          不静默处理
 end
 ```
 
@@ -96,6 +97,9 @@ end
 - Metric 锚需要 warp provider：`(coord, log_entry) -> Warp.t()`。
   没列 warp 的条目按 identity 处理。tempo map 变化、元素 span 变化
   → warp 的换算在适配层（参考 metric 族向量的 G-INT-03/05 场景）。
+- payload 跟随锚传输时，用 `Transport.fold_warp/4`（与 transport
+  同参）取回 transport 内部折叠出的那条 warp，交给
+  `ChannelAdapter.warp_payload/2`。
 - 坐标一律是 `Tamale.Coord` 精确有理数（0007）：整数直接可用，分数
   写 `{num, den}`；float 进不了内核（Metric 端点、Relative offset、
   Retime span、warp segments 都会被拒）。秒 → 微秒整数、帧 → 帧号

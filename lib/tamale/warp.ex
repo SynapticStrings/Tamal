@@ -95,14 +95,28 @@ defmodule Tamale.Warp do
   end
 
   @doc """
-  Where did coordinate `x` go? `:undefined` outside all pieces. `x` is
-  cast with `Coord.cast!/1`; the result is always a normalized rational.
-  """
-  @spec at(t(), Coord.input()) :: {:ok, Coord.t()} | :undefined
-  def at(%__MODULE__{pieces: :identity}, x), do: {:ok, Coord.cast!(x)}
+  Where did coordinate `x` go? `:undefined` outside all pieces.
 
-  def at(%__MODULE__{pieces: pieces}, x) do
-    case eval(pieces, Coord.cast!(x)) do
+  `x` is cast to a rational coordinate: floats are
+  `{:error, {:invalid_coordinate, value}}`. The result is always a
+  normalized rational. `at!/2` is the raising variant.
+  """
+  @spec at(t(), Coord.input()) ::
+          {:ok, Coord.t()} | :undefined | {:error, {:invalid_coordinate, term()}}
+  def at(warp, x) do
+    with {:ok, x} <- Coord.cast(x) do
+      do_at(warp, x)
+    end
+  end
+
+  @doc "Raising variant of `at/2`, for tests and known-good inputs."
+  @spec at!(t(), Coord.input()) :: {:ok, Coord.t()} | :undefined
+  def at!(warp, x), do: do_at(warp, Coord.cast!(x))
+
+  defp do_at(%__MODULE__{pieces: :identity}, x), do: {:ok, x}
+
+  defp do_at(%__MODULE__{pieces: pieces}, x) do
+    case eval(pieces, x) do
       nil -> :undefined
       y -> {:ok, y}
     end
@@ -158,18 +172,41 @@ defmodule Tamale.Warp do
   - no coverage    → `:undefined`
 
   For a non-point interval, coverage of measure zero (a shared boundary
-  endpoint) does not count as coverage. Both endpoints are cast with
-  `Coord.cast!/1`; `from > to` raises `ArgumentError`.
+  endpoint) does not count as coverage.
+
+  Both endpoints are cast to rational coordinates: floats are
+  `{:error, {:invalid_coordinate, value}}` and `from > to` is
+  `{:error, :invalid_interval}`. `map_interval!/3` is the raising
+  variant.
   """
   @spec map_interval(t(), Coord.input(), Coord.input()) ::
-          {:ok, interval()} | {:clip, [interval()], [interval()]} | :undefined
-  def map_interval(%__MODULE__{pieces: :identity}, from, to) do
-    {:ok, cast_interval!(from, to)}
+          {:ok, interval()}
+          | {:clip, [interval()], [interval()]}
+          | :undefined
+          | {:error, {:invalid_coordinate, term()} | :invalid_interval}
+  def map_interval(warp, from, to) do
+    with {:ok, from} <- Coord.cast(from),
+         {:ok, to} <- Coord.cast(to),
+         :ok <- check_order(from, to) do
+      do_map_interval(warp, {from, to})
+    end
   end
 
-  def map_interval(%__MODULE__{pieces: pieces}, from, to) do
+  @doc "Raising variant of `map_interval/3`, for tests and known-good inputs."
+  @spec map_interval!(t(), Coord.input(), Coord.input()) ::
+          {:ok, interval()} | {:clip, [interval()], [interval()]} | :undefined
+  def map_interval!(warp, from, to) do
     {from, to} = cast_interval!(from, to)
+    do_map_interval(warp, {from, to})
+  end
 
+  defp check_order(from, to) do
+    if Coord.gt?(from, to), do: {:error, :invalid_interval}, else: :ok
+  end
+
+  defp do_map_interval(%__MODULE__{pieces: :identity}, {from, to}), do: {:ok, {from, to}}
+
+  defp do_map_interval(%__MODULE__{pieces: pieces}, {from, to}) do
     covered_old =
       for {o0, o1, _n0, _n1} <- pieces,
           lo = Coord.max(o0, from),
@@ -185,6 +222,9 @@ defmodule Tamale.Warp do
 
       frags ->
         case gaps(frags, from, to) do
+          # Lemma: no gaps means [from, to] is covered contiguously, so
+          # both endpoints lie in some piece's domain and eval/2 cannot
+          # return nil here.
           [] ->
             {:ok, {eval(pieces, from), eval(pieces, to)}}
 

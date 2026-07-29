@@ -69,6 +69,11 @@ defmodule Tamale.SpaceTest do
     assert {:error, :merge_into} = Space.apply_op(s, %Merge{ids: [:a, :b], into: :b})
   end
 
+  test "merge with duplicate ids is rejected as such, not as non-adjacent" do
+    s = Space.new!([:a, :b])
+    assert {:error, :merge_duplicate_ids} = Space.apply_op(s, %Merge{ids: [:a, :a], into: :a})
+  end
+
   test "move reorders" do
     {:ok, s} = Space.new!([:a, :b, :c]) |> Space.apply_op(%Move{id: :a, after_id: :c})
     assert s.ids == [:b, :c, :a]

@@ -68,10 +68,12 @@ Working and tested:
 - `Space` op application with validation, versioning, log, truncation
 - `Transport` for all three anchor shapes:
   - `Ordinal` (delete/split/merge/move/retime, conjunctive refs,
-    head-state adjacency, truncated/future versions)
+    head-state adjacency, `boundary_merged` when a merge collapses an
+    `adjacent?` anchor's refs, truncated/future versions)
   - `Metric` (warp-fold transport; warps come from a Caller provider —
     the kernel holds no spans; partial survival surfaces as first-class
-    `{:clip, covered, lost}`)
+    `{:clip, covered, lost}`; the folded warp is available via
+    `Transport.fold_warp/4` for `ChannelAdapter.warp_payload/2`)
   - `Relative` (Ordinal-rule host transport; absolute interval derived
     via `Anchor.project/3`; offsets may be negative and overhang the
     host)
@@ -83,7 +85,7 @@ Working and tested:
   floats/structs/tuples rejected; atom keys encoded by name; spec +
   worked examples in `docs/spec/canonical-digest.md`)
 - `ChannelAdapter.warp_payload/2` — the single channel-adapter callback
-- JSON conformance vectors (`test/conformance/`, format v1): 35 scenarios
+- JSON conformance vectors (`test/conformance/`, format v1): 36 scenarios
   across space/ordinal/metric/relative/digest/resolve, seeded from
   zongzi's `GOLDEN_SCENARIOS.md` including the deliberate semantic flips
   (G-AN-02 merge, G-INT-05 seconds anchor). Coordinates travel as

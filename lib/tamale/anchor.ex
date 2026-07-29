@@ -29,7 +29,9 @@ defmodule Tamale.Anchor do
     - `adjacent?` — when true, `refs` must remain consecutive in the
       space's order; breaking adjacency is `{:undefined, :adjacency_broken}`.
       This is how "the boundary between A and B" is expressed — as a
-      first-class predicate, not a neighbor-similarity heuristic.
+      first-class predicate, not a neighbor-similarity heuristic. The
+      boundary is part of the referent: a `Merge` that collapses the refs
+      removes it, and the anchor dies with `{:undefined, :boundary_merged}`.
     - `at_version` — space version these refs are valid at.
     """
     defstruct refs: [], adjacent?: false, at_version: 0

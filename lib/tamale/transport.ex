@@ -26,6 +26,11 @@ defmodule Tamale.Transport do
   - `adjacent?` is judged on the **head state** after the fold. ids are
     never reused and deletes are irreversible, so only the net effect can
     matter — a mid-log break that is restored by head leaves no residue.
+  - an `adjacent?` anchor names the boundary between its refs: a `Merge`
+    that collapses them removes the boundary, and the anchor dies with
+    `{:undefined, :boundary_merged}`. Plain conjunctive refs instead
+    deduplicate onto `into` and survive — judging whether the edit still
+    means something is `Tamale.Patch.resolve/2`'s job, not transport's
   - refs that are not live at head indicate a Caller bug at mount time and
     are reported as `{:error, {:unknown_ref, id}}`, not silently kept
 
@@ -41,6 +46,10 @@ defmodule Tamale.Transport do
     insertion)
   - partial coverage → `{:clip, [%Anchor.Metric{}], lost}`
   - no coverage → `{:undefined, :outside_warp}`
+
+  The folded warp is available on its own — `fold_warp/4`, called with
+  the same arguments — for transforming the payload alongside its anchor
+  (`Tamale.ChannelAdapter.warp_payload/2`).
 
   ## Relative semantics
 
@@ -80,8 +89,11 @@ defmodule Tamale.Transport do
         end
       end)
       |> case do
-        {:ok, refs} -> finish(%{anchor | refs: refs, at_version: space.version}, space)
-        other -> other
+        {:ok, refs} ->
+          finish(%{anchor | refs: refs, at_version: space.version}, space, length(anchor.refs))
+
+        other ->
+          other
       end
     end
   end
@@ -125,15 +137,8 @@ defmodule Tamale.Transport do
     with {:ok, from} <- Coord.cast(anchor.from),
          {:ok, to} <- Coord.cast(anchor.to),
          :ok <- check_interval(from, to),
-         {:ok, entries} <- Space.log_from(space, anchor.at_version) do
-      anchor = %{anchor | from: from, to: to}
-
-      total =
-        Enum.reduce(entries, Warp.identity(), fn entry, acc ->
-          Warp.compose(warp_provider.(coord, entry), acc)
-        end)
-
-      case Warp.map_interval(total, anchor.from, anchor.to) do
+         {:ok, total} <- fold_warp(coord, space, anchor.at_version, warp_provider) do
+      case Warp.map_interval(total, from, to) do
         {:ok, {from, to}} ->
           {:ok, %{anchor | from: from, to: to, at_version: space.version}}
 
@@ -147,7 +152,35 @@ defmodule Tamale.Transport do
 
         :undefined ->
           {:undefined, :outside_warp}
+
+        {:error, reason} ->
+          # unreachable: the endpoints were cast and ordered above
+          {:error, reason}
       end
+    end
+  end
+
+  @doc """
+  Folds the per-entry warps the provider supplies for
+  `log[from_version..head]` into one, oldest first (`Warp.compose/2`,
+  starting from `Warp.identity/0`). This is exactly the fold
+  `transport/3` performs internally — call it with the same arguments to
+  obtain the warp that carries a payload alongside its
+  `Tamale.Anchor.Metric` (`Tamale.ChannelAdapter.warp_payload/2`), for
+  both the `{:ok, anchor'}` and the `{:clip, covered, lost}` outcomes.
+
+  `from_version` errors are explicit, as in `Space.log_from/2`:
+  `{:error, {:future_version, v}}` and `{:error, :log_truncated}`.
+  """
+  @spec fold_warp(term(), Space.t(), Tamale.version(), warp_provider()) ::
+          {:ok, Warp.t()} | {:error, term()}
+  def fold_warp(coord, %Space{} = space, from_version, warp_provider)
+      when is_function(warp_provider, 2) do
+    with {:ok, entries} <- Space.log_from(space, from_version) do
+      {:ok,
+       Enum.reduce(entries, Warp.identity(), fn entry, acc ->
+         Warp.compose(warp_provider.(coord, entry), acc)
+       end)}
     end
   end
 
@@ -161,6 +194,9 @@ defmodule Tamale.Transport do
     if id in refs, do: {:undefined, {:deleted, id}}, else: {:ok, refs}
   end
 
+  # Space rejects hd(children) != id (:split_identity), so first == id and
+  # this map is the identity in practice — it exists to show where Split's
+  # first-child identity continuation lands.
   defp remap(refs, %Split{id: id, children: [first | _]}) do
     {:ok, Enum.map(refs, fn r -> if r == id, do: first, else: r end)}
   end
@@ -183,13 +219,23 @@ defmodule Tamale.Transport do
 
   # ---- head-state checks ----
 
-  defp finish(%Ordinal{refs: refs} = anchor, space) do
+  # ref_count is the ref count at mount time. Merge deduplication is the
+  # only remap that shrinks the ref set, so a smaller set at head means a
+  # merge collapsed some of the refs.
+  defp finish(%Ordinal{refs: refs} = anchor, space, ref_count) do
     case Enum.find(refs, &(&1 not in space.ids)) do
       nil ->
-        if anchor.adjacent? and not consecutive?(refs, space.ids) do
-          {:undefined, :adjacency_broken}
-        else
-          {:ok, anchor}
+        cond do
+          # an adjacent? anchor names the boundary between its refs;
+          # collapsing any pair removes that boundary
+          anchor.adjacent? and length(refs) < ref_count ->
+            {:undefined, :boundary_merged}
+
+          anchor.adjacent? and not consecutive?(refs, space.ids) ->
+            {:undefined, :adjacency_broken}
+
+          true ->
+            {:ok, anchor}
         end
 
       bad ->

@@ -52,6 +52,27 @@ defmodule Tamale.TransportTest do
     assert {:ok, _} = Transport.transport(anchor([:a, :b]), s)
   end
 
+  test "merging an adjacent? anchor's refs kills it: the boundary is gone" do
+    {:ok, s} = Space.new!([:a, :b, :c]) |> Space.apply_op(%Merge{ids: [:b, :c], into: :b})
+
+    assert {:undefined, :boundary_merged} =
+             Transport.transport(anchor([:b, :c], adjacent?: true), s)
+  end
+
+  test "collapsing a middle pair kills a longer adjacent? anchor" do
+    {:ok, s} = Space.new!([:a, :b, :c, :d]) |> Space.apply_op(%Merge{ids: [:b, :c], into: :b})
+
+    assert {:undefined, :boundary_merged} =
+             Transport.transport(anchor([:a, :b, :c, :d], adjacent?: true), s)
+  end
+
+  test "merging only one side slides the boundary onto into" do
+    {:ok, s} = Space.new!([:a, :b, :c]) |> Space.apply_op(%Merge{ids: [:b, :c], into: :b})
+
+    assert {:ok, %Ordinal{refs: [:a, :b], adjacent?: true, at_version: 1}} =
+             Transport.transport(anchor([:a, :b], adjacent?: true), s)
+  end
+
   test "retime is transparent to ordinal anchors" do
     {:ok, s} =
       Space.new!([:a]) |> Space.apply_op(%Retime{id: :a, old_span: {0, 10}, new_span: {5, 15}})
@@ -159,6 +180,37 @@ defmodule Tamale.TransportTest do
 
     assert {:error, :invalid_interval} =
              Transport.transport(%Metric{coord: :tick, from: 8, to: 3}, s, provider)
+  end
+
+  test "fold_warp returns exactly the warp transport folds" do
+    s = Space.new!([:a])
+    {:ok, s} = Space.apply_op(s, %Retime{id: :a, old_span: {0, 10}, new_span: {0, 20}})
+    {:ok, s} = Space.apply_op(s, %Retime{id: :a, old_span: {0, 20}, new_span: {10, 20}})
+
+    provider = fn
+      :tick, {1, _ops} -> Warp.from_span({0, 10}, {0, 20})
+      :tick, {2, _ops} -> Warp.from_span({0, 20}, {10, 20})
+    end
+
+    # same composed warp as "metric transport composes warps across batches"
+    assert {:ok, warp} = Transport.fold_warp(:tick, s, 0, provider)
+    assert {:ok, {15, 1}} = Warp.at(warp, 5)
+    assert {:ok, {20, 1}} = Warp.at(warp, 10)
+  end
+
+  test "fold_warp at head is identity and reports version errors" do
+    {:ok, s} =
+      Space.new!([:a]) |> Space.apply_op(%Retime{id: :a, old_span: {0, 10}, new_span: {0, 20}})
+
+    provider = fn :tick, _entry -> Warp.from_span({0, 10}, {0, 20}) end
+
+    assert {:ok, warp} = Transport.fold_warp(:tick, s, 1, provider)
+    assert warp == Warp.identity()
+
+    assert {:error, {:future_version, 99}} = Transport.fold_warp(:tick, s, 99, provider)
+
+    s = Space.truncate(s, 1)
+    assert {:error, :log_truncated} = Transport.fold_warp(:tick, s, 0, provider)
   end
 
   # ---- Relative ----

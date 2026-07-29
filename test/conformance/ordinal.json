@@ -109,6 +109,36 @@
       ]
     },
     {
+      "name": "G-AN-03/boundary_merge_semantics",
+      "note": "an adjacent anchor names the boundary itself. Merging the pair removes the boundary: boundary_merged — unlike plain conjunctive refs (G-AN-02), which deduplicate onto into and let Patch.resolve judge. Merging only one side slides the boundary onto into.",
+      "space": [1, 2, 3, 4],
+      "script": [
+        [{"op": "merge", "ids": [2, 3], "into": 2}]
+      ],
+      "cases": [
+        {
+          "name": "merging the pair removes the boundary",
+          "anchor": {"type": "ordinal", "refs": [2, 3], "adjacent": true},
+          "expect": {"status": "undefined", "reason": "boundary_merged"}
+        },
+        {
+          "name": "collapsing an internal pair kills the longer chain",
+          "anchor": {"type": "ordinal", "refs": [1, 2, 3, 4], "adjacent": true},
+          "expect": {"status": "undefined", "reason": "boundary_merged"}
+        },
+        {
+          "name": "merge elsewhere leaves the boundary intact",
+          "anchor": {"type": "ordinal", "refs": [1, 2], "adjacent": true},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [1, 2], "adjacent": true, "at_version": 1}}
+        },
+        {
+          "name": "merging one side slides the boundary onto into",
+          "anchor": {"type": "ordinal", "refs": [3, 4], "adjacent": true},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [2, 4], "adjacent": true, "at_version": 1}}
+        }
+      ]
+    },
+    {
       "name": "move_and_retime_leave_identity_untouched",
       "note": "G-INT-06 structure side: drag + tempo change do not touch identity anchors",
       "space": [1, 2, 3],

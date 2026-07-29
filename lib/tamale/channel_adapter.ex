@@ -11,6 +11,10 @@ defmodule Tamale.ChannelAdapter do
   - dense frames are resampled generically; the interpolator is policy,
     not kernel
 
+  Obtain the warp for a `Tamale.Anchor.Metric` transport from
+  `Tamale.Transport.fold_warp/4`, called with the same arguments as the
+  transport itself — it returns exactly the warp the transport folded.
+
   This callback is the deliberate residue of zongzi's `on_rebase/4` — an
   order of magnitude smaller, but it does not go to zero.
   """

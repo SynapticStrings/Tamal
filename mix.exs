@@ -23,7 +23,7 @@ defmodule Tamale.MixProject do
   end
 
   def cli do
-    [preferred_envs: ["test.another": :test]]
+    [preferred_envs: [precommit: :test]]
   end
 
   defp deps do
