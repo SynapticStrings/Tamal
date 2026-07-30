@@ -56,14 +56,14 @@ defmodule Tamale.Warp do
   data-driven assembly use `from_segments/1`, which returns errors.
   """
   @spec from_span({Coord.input(), Coord.input()}, {Coord.input(), Coord.input()}) :: t()
-  def from_span({o0, o1} = _old_span, {n0, n1} = _new_span) do
+  def from_span({o0, o1} = old_span, {n0, n1} = new_span) do
     o0 = Coord.cast!(o0)
     o1 = Coord.cast!(o1)
     n0 = Coord.cast!(n0)
     n1 = Coord.cast!(n1)
 
     unless Coord.lt?(o0, o1) and Coord.lt?(n0, n1) do
-      raise ArgumentError, "invalid warp span: #{inspect({_old_span, _new_span})}"
+      raise ArgumentError, "invalid warp span: #{inspect({old_span, new_span})}"
     end
 
     %__MODULE__{pieces: [{o0, o1, n0, n1}]}

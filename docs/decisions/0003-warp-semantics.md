@@ -46,12 +46,5 @@ zongzi 的 GOLDEN_SCENARIOS 钉死了两条现状，warp 会翻转它们：
 日志折叠 Caller 提供的 warp。tempo map / 元素 span 表 → segments 的
 换算属 adapter 层。
 
-`from_segments/1` 产出偏映射（`default: :undefined`）；非 ripple 适配器
-通常需要全映射——段外坐标恒等通过。`Warp.total/1` 将 warp 切换为全映射
-模式（`default: :identity`），适配器在 `from_segments` 后调用即可：
-
-    {:ok, warp} = Warp.from_segments(segs)
-    warp = Warp.total(warp)
-
 （坐标表示在 0007 收紧为精确有理数：插值与复合不积浮点尘埃，
 conformance 向量可逐字节复现。）
