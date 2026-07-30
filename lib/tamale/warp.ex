@@ -21,11 +21,23 @@ defmodule Tamale.Warp do
   definition**; non-monotone reordering is `Tamale.Op.Move`, not a warp,
   and `from_segments/1` rejects it.
 
+  ## Default behaviour
+
+  The `default` field controls what happens to coordinates outside all
+  pieces:
+  - `:undefined` (default) — the coordinate is lost (hole / ripple delete)
+  - `:identity` — the coordinate passes through unchanged (non-ripple tick
+    space: only Retimed regions transform)
+
+  Use `total/1` to switch a warp to identity-fill mode.
+
   ## Algebra
 
   - `from_segments/1` — piecewise assembly from `{old_span, new_span}`
     segment pairs (the only raw material is coordinate data; turning tempo
     maps or element span tables into segments is the adapter layer's job)
+  - `from_span/2` — single-piece convenience
+  - `total/1` — lift a partial warp to total (uncovered → identity)
   - `compose/2` — partial composition, domain intersects
   - `invert/1` — new coordinates become the domain
   - `map_interval/2` — interval transport with first-class partial
@@ -40,13 +52,13 @@ defmodule Tamale.Warp do
   @typedoc "A `{from, to}` interval."
   @type interval :: {Coord.t(), Coord.t()}
 
-  @type t :: %__MODULE__{pieces: :identity | [piece()]}
+  @type t :: %__MODULE__{pieces: :identity | [piece()], default: :undefined | :identity}
 
-  defstruct pieces: :identity
+  defstruct pieces: :identity, default: :undefined
 
   @doc "The identity warp: every coordinate maps to itself."
   @spec identity() :: t()
-  def identity, do: %__MODULE__{}
+  def identity, do: %__MODULE__{default: :undefined}
 
   @doc """
   A single-piece warp linearly mapping `old_span` onto `new_span`.
@@ -56,14 +68,14 @@ defmodule Tamale.Warp do
   data-driven assembly use `from_segments/1`, which returns errors.
   """
   @spec from_span({Coord.input(), Coord.input()}, {Coord.input(), Coord.input()}) :: t()
-  def from_span({o0, o1} = old_span, {n0, n1} = new_span) do
+  def from_span({o0, o1} = _old_span, {n0, n1} = _new_span) do
     o0 = Coord.cast!(o0)
     o1 = Coord.cast!(o1)
     n0 = Coord.cast!(n0)
     n1 = Coord.cast!(n1)
 
     unless Coord.lt?(o0, o1) and Coord.lt?(n0, n1) do
-      raise ArgumentError, "invalid warp span: #{inspect({old_span, new_span})}"
+      raise ArgumentError, "invalid warp span: \#{inspect({_old_span, _new_span})}"
     end
 
     %__MODULE__{pieces: [{o0, o1, n0, n1}]}
@@ -77,6 +89,9 @@ defmodule Tamale.Warp do
   and monotone; shared endpoints are allowed. Errors: `:invalid_segment`
   (malformed, non-increasing, or non-coordinate spans — floats included),
   `:segments_overlap`, `:non_monotone`.
+
+  The result has `default: :undefined` — coordinates outside segments are
+  lost. Use `total/1` to switch to identity-fill.
   """
   @spec from_segments([{{Coord.input(), Coord.input()}, {Coord.input(), Coord.input()}}]) ::
           {:ok, t()} | {:error, term()}
@@ -93,6 +108,18 @@ defmodule Tamale.Warp do
       end
     end
   end
+
+  @doc """
+  Returns a copy of `warp` where coordinates outside all pieces pass
+  through as identity instead of dying.
+
+      warp |> Warp.from_segments!(segs) |> Warp.total()
+
+  This is the typical need for non-ripple tick-space adapters: only the
+  Retimed regions should transform; everything else stays put.
+  """
+  @spec total(t()) :: t()
+  def total(%__MODULE__{} = warp), do: %{warp | default: :identity}
 
   @doc """
   Where did coordinate `x` go? `:undefined` outside all pieces.
@@ -115,6 +142,13 @@ defmodule Tamale.Warp do
 
   defp do_at(%__MODULE__{pieces: :identity}, x), do: {:ok, x}
 
+  defp do_at(%__MODULE__{pieces: pieces, default: :identity}, x) do
+    case eval(pieces, x) do
+      nil -> {:ok, x}
+      y -> {:ok, y}
+    end
+  end
+
   defp do_at(%__MODULE__{pieces: pieces}, x) do
     case eval(pieces, x) do
       nil -> :undefined
@@ -126,12 +160,14 @@ defmodule Tamale.Warp do
   Composes two warps: `compose(outer, inner)` maps `x` through `inner`
   first, then `outer` — the partial composition, defined exactly where
   `inner(x)` is defined and lands in `outer`'s domain.
+
+  The composed warp inherits `outer`'s default.
   """
   @spec compose(t(), t()) :: t()
   def compose(%__MODULE__{pieces: :identity}, inner), do: inner
   def compose(outer, %__MODULE__{pieces: :identity}), do: outer
 
-  def compose(%__MODULE__{pieces: outer}, %__MODULE__{pieces: inner}) do
+  def compose(%__MODULE__{pieces: outer, default: dfl}, %__MODULE__{pieces: inner}) do
     pieces =
       for {o0, o1, n0, n1} <- inner,
           {p0, p1, q0, q1} <- outer,
@@ -142,7 +178,7 @@ defmodule Tamale.Warp do
          lerp(hi, p0, p1, q0, q1)}
       end
 
-    %__MODULE__{pieces: sort_pieces(pieces)}
+    %__MODULE__{pieces: sort_pieces(pieces), default: dfl}
   end
 
   @doc """
@@ -151,12 +187,10 @@ defmodule Tamale.Warp do
   become undefined.
   """
   @spec invert(t()) :: t()
-  def invert(%__MODULE__{pieces: :identity}), do: identity()
+  def invert(%__MODULE__{pieces: :identity} = w), do: %{w | default: :undefined}
 
-  def invert(%__MODULE__{pieces: pieces}) do
-    %__MODULE__{
-      pieces: pieces |> Enum.map(fn {o0, o1, n0, n1} -> {n0, n1, o0, o1} end) |> sort_pieces()
-    }
+  def invert(%__MODULE__{pieces: pieces} = w) do
+    %{w | pieces: pieces |> Enum.map(fn {o0, o1, n0, n1} -> {n0, n1, o0, o1} end) |> sort_pieces()}
   end
 
   @doc """
@@ -206,6 +240,34 @@ defmodule Tamale.Warp do
 
   defp do_map_interval(%__MODULE__{pieces: :identity}, {from, to}), do: {:ok, {from, to}}
 
+  defp do_map_interval(%__MODULE__{pieces: pieces, default: :identity}, {from, to}) do
+    covered_old =
+      for {o0, o1, _n0, _n1} <- pieces,
+          lo = Coord.max(o0, from),
+          hi = Coord.min(o1, to),
+          Coord.lte?(lo, hi),
+          from == to or Coord.lt?(lo, hi) do
+        {lo, hi}
+      end
+
+    case covered_old do
+      [] ->
+        {:ok, {from, to}}
+
+      frags ->
+        case gaps(frags, from, to) do
+          [] ->
+            {:ok, {eval(pieces, from), eval(pieces, to)}}
+
+          lost ->
+            covered_new = Enum.map(frags, fn {f, t} -> {eval(pieces, f), eval(pieces, t)} end)
+            lost_new = Enum.map(lost, fn {f, t} -> {f, t} end)
+            all = sort_intervals(covered_new ++ lost_new)
+            {:clip, all, []}
+        end
+    end
+  end
+
   defp do_map_interval(%__MODULE__{pieces: pieces}, {from, to}) do
     covered_old =
       for {o0, o1, _n0, _n1} <- pieces,
@@ -222,9 +284,6 @@ defmodule Tamale.Warp do
 
       frags ->
         case gaps(frags, from, to) do
-          # Lemma: no gaps means [from, to] is covered contiguously, so
-          # both endpoints lie in some piece's domain and eval/2 cannot
-          # return nil here.
           [] ->
             {:ok, {eval(pieces, from), eval(pieces, to)}}
 
@@ -237,8 +296,6 @@ defmodule Tamale.Warp do
 
   # ---- helpers ----
 
-  # Maps x linearly from span {a0, a1} onto span {b0, b1}. Exact: every
-  # operation stays in the rationals.
   defp lerp(x, a0, a1, b0, b1) do
     Coord.add(b0, Coord.divide(Coord.mul(Coord.sub(x, a0), Coord.sub(b1, b0)), Coord.sub(a1, a0)))
   end
@@ -248,7 +305,7 @@ defmodule Tamale.Warp do
     to = Coord.cast!(to)
 
     if Coord.gt?(from, to) do
-      raise ArgumentError, "interval with from > to: #{inspect({from, to})}"
+      raise ArgumentError, "interval with from > to: \#{inspect({from, to})}"
     end
 
     {from, to}
@@ -287,6 +344,10 @@ defmodule Tamale.Warp do
     Enum.sort(pieces, fn {o0, _, _, _}, {p0, _, _, _} -> Coord.lte?(o0, p0) end)
   end
 
+  defp sort_intervals(intervals) do
+    Enum.sort(intervals, fn {a0, _}, {b0, _} -> Coord.lte?(a0, b0) end)
+  end
+
   defp check_layout(pieces) do
     pieces
     |> Enum.chunk_every(2, 1, :discard)
@@ -306,7 +367,6 @@ defmodule Tamale.Warp do
     end
   end
 
-  # Sub-intervals of `[from, to]` not covered by the sorted fragment list.
   defp gaps(frags, from, to) do
     {gaps, cursor} =
       Enum.map_reduce(frags, from, fn {f, t}, cursor ->
