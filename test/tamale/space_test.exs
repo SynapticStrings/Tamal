@@ -4,11 +4,19 @@ defmodule Tamale.SpaceTest do
   alias Tamale.Op.{Delete, Insert, Merge, Move, Retime, Split}
   alias Tamale.Space
 
+  test "blank" do
+    assert {:ok, %Space{}} == Space.new()
+    assert %Space{} == Space.new!()
+    assert {:ok, %Space{}} == Space.new!() |> Space.apply_batch([])
+  end
+
   test "genesis" do
     s = Space.new!([:a, :b])
     assert s.ids == [:a, :b]
     assert s.version == 0
     assert s.log == []
+
+    assert Space.member?(s, :a)
   end
 
   test "genesis rejects duplicate ids" do
