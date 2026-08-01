@@ -165,6 +165,40 @@
       ]
     },
     {
+      "name": "ref_born_after_at_version_is_error",
+      "note": "a ref created inside the folded log was not yet live at at_version — the same Caller mount bug as a dangling head ref (docs/decisions/0002)",
+      "space": [1],
+      "script": [
+        [{"op": "insert", "id": 2, "after_id": 1}]
+      ],
+      "cases": [
+        {
+          "name": "mounted before the insert",
+          "anchor": {"type": "ordinal", "refs": [2], "at_version": 0},
+          "expect": {"status": "error", "reason": ["unknown_ref", 2]}
+        },
+        {
+          "name": "mounted at the version where it exists",
+          "anchor": {"type": "ordinal", "refs": [2], "at_version": 1},
+          "expect": {"status": "ok", "anchor": {"type": "ordinal", "refs": [2], "at_version": 1}}
+        }
+      ]
+    },
+    {
+      "name": "split_child_born_after_at_version_is_error",
+      "note": "a split's new children are born at the split — referencing one from an earlier version is the same late-birth mount bug",
+      "space": [1],
+      "script": [
+        [{"op": "split", "id": 1, "children": [1, 2]}]
+      ],
+      "cases": [
+        {
+          "anchor": {"type": "ordinal", "refs": [2], "at_version": 0},
+          "expect": {"status": "error", "reason": ["unknown_ref", 2]}
+        }
+      ]
+    },
+    {
       "name": "future_version_is_error",
       "space": [1],
       "script": [

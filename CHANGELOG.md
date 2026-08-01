@@ -66,3 +66,28 @@ canonical digests, JSON conformance vectors.
 - **Docs** — decision records `docs/decisions/0001`–`0007`; Chinese
   caller guide (`docs/zh/guide/caller-guide-zh.md`): the Caller
   orchestration contract. (`12ecbf2`, `644d849`)
+
+### Fixed
+
+- **`Warp.map_interval/3` at jump boundaries** — an interval (or clip
+  fragment) starting exactly at an insertion jump now takes its start
+  image from the arriving piece; previously the departing piece's value
+  leaked in through first-piece boundary resolution, producing images
+  with no preimage in the anchor's support. Pinned by the new
+  `interval_starting_at_jump_uses_arriving_piece` and
+  `clip_fragment_starting_at_jump_uses_arriving_piece` vectors.
+- **Transport rejects refs born after `at_version`** — an `Insert` (or a
+  ref-creating `Split`) inside the folded log is
+  `{:error, {:unknown_ref, id}}`, like a dangling head ref
+  (docs/decisions/0002). Pinned by the new
+  `ref_born_after_at_version_is_error` and
+  `split_child_born_after_at_version_is_error` vectors.
+- **`Tamale.Digest` rejects invalid UTF-8** — byte strings and map keys
+  that are not valid UTF-8 are rejected (`{:non_canonical, value}` /
+  `{:non_canonical_key, key}`); spec v1 updated, including the
+  `non_canonical_key` reason and a map-encoding typo.
+- **`Anchor.project/3` rejects inverted offset intervals** —
+  `from_offset > to_offset` is `{:error, :invalid_interval}`; overhanging
+  the host stays legal.
+- **Docs** — `Warp.compose/2` now documents that measure-zero
+  (single-point) intersections are dropped.

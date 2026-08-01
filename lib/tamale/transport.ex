@@ -31,8 +31,10 @@ defmodule Tamale.Transport do
     `{:undefined, :boundary_merged}`. Plain conjunctive refs instead
     deduplicate onto `into` and survive — judging whether the edit still
     means something is `Tamale.Patch.resolve/2`'s job, not transport's
-  - refs that are not live at head indicate a Caller bug at mount time and
-    are reported as `{:error, {:unknown_ref, id}}`, not silently kept
+  - refs that are not live at head — or that were not yet live at
+    `at_version` (the `Insert`, or the `Split`, that created them shows up
+    in the folded log) — indicate a Caller bug at mount time and are
+    reported as `{:error, {:unknown_ref, id}}`, not silently kept
 
   ## Metric semantics
 
@@ -64,7 +66,7 @@ defmodule Tamale.Transport do
 
   alias Tamale.{Anchor, Coord, Space, Warp}
   alias Tamale.Anchor.{Metric, Ordinal, Relative}
-  alias Tamale.Op.{Delete, Merge, Split}
+  alias Tamale.Op.{Delete, Insert, Merge, Split}
 
   @typedoc "Supplies the warp for one log entry in one coordinate system."
   @type warp_provider :: (term(), Space.entry() -> Warp.t())
@@ -86,6 +88,7 @@ defmodule Tamale.Transport do
         case remap(refs, op) do
           {:ok, refs2} -> {:cont, {:ok, refs2}}
           {:undefined, _} = undef -> {:halt, undef}
+          {:error, _} = err -> {:halt, err}
         end
       end)
       |> case do
@@ -194,11 +197,23 @@ defmodule Tamale.Transport do
     if id in refs, do: {:undefined, {:deleted, id}}, else: {:ok, refs}
   end
 
+  # An id created inside the folded log did not exist at at_version: the
+  # anchor was mounted against a version where the ref was not yet live —
+  # a Caller bug, reported like a dangling head ref.
+  defp remap(refs, %Insert{id: id}) do
+    if id in refs, do: {:error, {:unknown_ref, id}}, else: {:ok, refs}
+  end
+
   # Space rejects hd(children) != id (:split_identity), so first == id and
   # this map is the identity in practice — it exists to show where Split's
-  # first-child identity continuation lands.
-  defp remap(refs, %Split{id: id, children: [first | _]}) do
-    {:ok, Enum.map(refs, fn r -> if r == id, do: first, else: r end)}
+  # first-child identity continuation lands. The other children are born
+  # here: referencing one of them from before the split is the same
+  # late-birth Caller bug as with Insert above.
+  defp remap(refs, %Split{id: id, children: [first | rest]}) do
+    case Enum.find(rest, &(&1 in refs)) do
+      nil -> {:ok, Enum.map(refs, fn r -> if r == id, do: first, else: r end)}
+      late -> {:error, {:unknown_ref, late}}
+    end
   end
 
   defp remap(refs, %Merge{ids: merge_ids, into: into}) do
@@ -214,7 +229,7 @@ defmodule Tamale.Transport do
     {:ok, Enum.reverse(refs2)}
   end
 
-  # Insert / Move / Retime leave identity refs untouched.
+  # Move / Retime leave identity refs untouched.
   defp remap(refs, _op), do: {:ok, refs}
 
   # ---- head-state checks ----

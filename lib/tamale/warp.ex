@@ -125,7 +125,10 @@ defmodule Tamale.Warp do
   @doc """
   Composes two warps: `compose(outer, inner)` maps `x` through `inner`
   first, then `outer` — the partial composition, defined exactly where
-  `inner(x)` is defined and lands in `outer`'s domain.
+  `inner(x)` is defined and lands in `outer`'s domain. Intersections of
+  measure zero (a single shared point) are dropped: the composite may be
+  undefined at an isolated tangent point, matching the measure-zero
+  conventions of `at/2` and `map_interval/2`.
   """
   @spec compose(t(), t()) :: t()
   def compose(%__MODULE__{pieces: :identity}, inner), do: inner
@@ -174,6 +177,11 @@ defmodule Tamale.Warp do
   For a non-point interval, coverage of measure zero (a shared boundary
   endpoint) does not count as coverage.
 
+  Endpoint images are evaluated on the pieces that contribute coverage: an
+  interval starting exactly at a jump boundary maps its start to the
+  arriving piece's value, not the departing one's. A point interval keeps
+  `at/2`'s convention and resolves to the first piece.
+
   Both endpoints are cast to rational coordinates: floats are
   `{:error, {:invalid_coordinate, value}}` and `from > to` is
   `{:error, :invalid_interval}`. `map_interval!/3` is the raising
@@ -207,29 +215,39 @@ defmodule Tamale.Warp do
   defp do_map_interval(%__MODULE__{pieces: :identity}, {from, to}), do: {:ok, {from, to}}
 
   defp do_map_interval(%__MODULE__{pieces: pieces}, {from, to}) do
-    covered_old =
-      for {o0, o1, _n0, _n1} <- pieces,
+    covered =
+      for {o0, o1, _n0, _n1} = piece <- pieces,
           lo = Coord.max(o0, from),
           hi = Coord.min(o1, to),
           Coord.lte?(lo, hi),
           from == to or Coord.lt?(lo, hi) do
-        {lo, hi}
+        {lo, hi, piece}
       end
 
-    case covered_old do
+    case covered do
       [] ->
         :undefined
 
       frags ->
-        case gaps(frags, from, to) do
-          # Lemma: no gaps means [from, to] is covered contiguously, so
-          # both endpoints lie in some piece's domain and eval/2 cannot
-          # return nil here.
+        case gaps(Enum.map(frags, fn {lo, hi, _piece} -> {lo, hi} end), from, to) do
+          # No gaps means [from, to] is covered contiguously. Endpoint images
+          # come from the pieces that produced the edge fragments — not from
+          # eval/2, whose first-piece rule would resolve a shared boundary to
+          # a piece that contributed only measure-zero contact (a jump
+          # boundary) and produce an image with no preimage in the support.
           [] ->
-            {:ok, {eval(pieces, from), eval(pieces, to)}}
+            {_, _, first} = hd(frags)
+            {_, _, last} = List.last(frags)
+            # a point interval keeps eval/2's convention: first piece wins
+            last = if from == to, do: first, else: last
+            {:ok, {eval_piece(first, from), eval_piece(last, to)}}
 
           lost ->
-            covered_new = Enum.map(frags, fn {f, t} -> {eval(pieces, f), eval(pieces, t)} end)
+            covered_new =
+              Enum.map(frags, fn {f, t, piece} ->
+                {eval_piece(piece, f), eval_piece(piece, t)}
+              end)
+
             {:clip, covered_new, lost}
         end
     end
@@ -305,6 +323,12 @@ defmodule Tamale.Warp do
       lerp(x, o0, o1, n0, n1)
     end
   end
+
+  # The image of x under one specific piece — used with the piece that
+  # produced a coverage fragment, so a shared boundary endpoint resolves to
+  # the piece that actually contributed coverage rather than its abutting
+  # neighbour.
+  defp eval_piece({o0, o1, n0, n1}, x), do: lerp(x, o0, o1, n0, n1)
 
   # Sub-intervals of `[from, to]` not covered by the sorted fragment list.
   defp gaps(frags, from, to) do

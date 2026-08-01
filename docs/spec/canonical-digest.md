@@ -21,13 +21,18 @@ canonical := nil | true | false
            | { string_key: canonical, ... }
 ```
 
-Anything else is **rejected** with `{:error, {:non_canonical, value}}`:
-floats, tuples, structs/classes, map keys that are not strings. This is
-deliberate. Adapting domain values into canonical form is the channel
-adapter's obligation (`docs/decisions/0005`), and rejection is how the
-kernel keeps it honest — a float that slips through would make the
-digest depend on a language's float printing, which is exactly what this
-spec exists to prevent.
+Anything else is **rejected**: floats, tuples, structs/classes, and other
+non-canonical values with `{:error, {:non_canonical, value}}`; map keys
+that are not strings (or, in Elixir, atoms) with
+`{:error, {:non_canonical_key, key}}`. Strings must be valid UTF-8: an
+invalid byte string is rejected like any non-canonical value
+(`{:non_canonical, value}` as a value, `{:non_canonical_key, key}` as a
+key) — JSON cannot carry either case, so the vectors do not pin them.
+This is deliberate. Adapting domain values into canonical form is the
+channel adapter's obligation (`docs/decisions/0005`), and rejection is
+how the kernel keeps it honest — a float that slips through would make
+the digest depend on a language's float printing, which is exactly what
+this spec exists to prevent.
 
 Elixir convenience: map keys may be atoms; they encode as their name
 (`:onset` → `"onset"`). A collision after conversion (`%{a: 1, "a" => 2}`)
@@ -44,7 +49,7 @@ UTF-8 bytes, no whitespace anywhere:
   (four lowercase hex digits). **All other bytes pass through as raw
   UTF-8** — no `\n` shortcuts, no `\u` escapes for non-ASCII
 - list → `[` + elements joined by `,` + `]`
-- map → `{` + pairs joined by `,` + `]`, each pair
+- map → `{` + pairs joined by `,` + `}`, each pair
   `"` + escaped_key + `":"` + value. Pairs are **sorted by the raw
   UTF-8 bytes of the unescaped key** (byte-wise comparison, which for
   UTF-8 equals codepoint order)

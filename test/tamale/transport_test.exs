@@ -100,6 +100,21 @@ defmodule Tamale.TransportTest do
     assert {:error, {:unknown_ref, :ghost}} = Transport.transport(anchor([:ghost]), s)
   end
 
+  test "refs born after at_version are caller bugs, not silent survivors" do
+    {:ok, s} = Space.new!([:a]) |> Space.apply_op(%Insert{id: :x, after_id: :a})
+    assert {:error, {:unknown_ref, :x}} = Transport.transport(anchor([:x]), s)
+
+    # mounted at a version where :x exists, the same ref transports fine
+    assert {:ok, %Ordinal{refs: [:x], at_version: 1}} =
+             Transport.transport(anchor([:x], at_version: 1), s)
+  end
+
+  test "refs born by a split after at_version are caller bugs" do
+    {:ok, s} = Space.new!([:a]) |> Space.apply_op(%Split{id: :a, children: [:a, :a2]})
+    assert {:error, {:unknown_ref, :a2}} = Transport.transport(anchor([:a2]), s)
+    assert {:ok, %Ordinal{refs: [:a], at_version: 1}} = Transport.transport(anchor([:a]), s)
+  end
+
   test "non-anchor structs are reported as unsupported" do
     s = Space.new!([:a])
     assert {:error, {:unsupported_anchor, Tamale.Patch}} = Transport.transport(%Tamale.Patch{}, s)

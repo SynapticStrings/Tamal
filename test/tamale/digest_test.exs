@@ -57,6 +57,12 @@ defmodule Tamale.DigestTest do
       assert {:error, {:non_canonical_key, 1}} = Digest.encode(%{1 => :a})
     end
 
+    test "invalid UTF-8 strings and keys are not canonical strings" do
+      assert {:error, {:non_canonical, <<0xFF>>}} = Digest.encode(<<0xFF>>)
+      assert {:error, {:non_canonical, <<0xE4, 0xB8>>}} = Digest.encode(<<0xE4, 0xB8>>)
+      assert {:error, {:non_canonical_key, <<0xFF>>}} = Digest.encode(%{<<0xFF>> => 1})
+    end
+
     test "atom/binary key collisions after conversion" do
       assert {:error, :duplicate_keys} = Digest.encode(%{"a" => 2, a: 1})
     end

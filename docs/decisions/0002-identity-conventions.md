@@ -15,7 +15,9 @@
 5. **`adjacent?` 是 head 态谓词**：ids 永不复用、delete 不可逆，
    中途断裂又被恢复的邻接不留残渣，只看净效果。
 6. **head 上查无此 ref = Caller 挂载错误**，报
-   `{:error, {:unknown_ref, id}}`，不静默放行。
+   `{:error, {:unknown_ref, id}}`，不静默放行。同理，ref 晚于
+   `at_version` 出生（fold 范围内见到它的 `Insert`，或产生它的
+   `Split`）也是挂载错误，同一报错。
 
 ## 理由
 

@@ -101,7 +101,9 @@ defmodule Tamale.Anchor do
   Offsets may be negative and may overhang the host (preutterance); there
   is no within-host invariant. What an overhanging interval *means* for
   survival is judged later, by warp (`Tamale.Warp.map_interval/2` clip
-  semantics), not here. Offsets and the span are cast to rational
+  semantics), not here. An inverted offset interval (`from_offset >
+  to_offset`) is not an overhang — it is rejected with
+  `{:error, :invalid_interval}`. Offsets and the span are cast to rational
   coordinates; floats are `{:error, {:invalid_coordinate, value}}`.
   """
   @spec project(
@@ -109,19 +111,22 @@ defmodule Tamale.Anchor do
           term(),
           (Tamale.id() -> {Tamale.Coord.input(), Tamale.Coord.input()} | nil)
         ) ::
-          {:ok, Metric.t()} | {:error, {:unknown_id, Tamale.id()} | {:invalid_coordinate, term()}}
+          {:ok, Metric.t()}
+          | {:error,
+             {:unknown_id, Tamale.id()} | {:invalid_coordinate, term()} | :invalid_interval}
   def project(%Relative{} = anchor, coord, span_fun) when is_function(span_fun, 1) do
     with {:ok, from_offset} <- Tamale.Coord.cast(anchor.from_offset),
          {:ok, to_offset} <- Tamale.Coord.cast(anchor.to_offset),
          {start, _stop} <- span_fun.(anchor.ref),
          {:ok, start} <- Tamale.Coord.cast(start) do
-      {:ok,
-       %Metric{
-         coord: coord,
-         from: Tamale.Coord.add(start, from_offset),
-         to: Tamale.Coord.add(start, to_offset),
-         at_version: anchor.at_version
-       }}
+      from = Tamale.Coord.add(start, from_offset)
+      to = Tamale.Coord.add(start, to_offset)
+
+      if Tamale.Coord.gt?(from, to) do
+        {:error, :invalid_interval}
+      else
+        {:ok, %Metric{coord: coord, from: from, to: to, at_version: anchor.at_version}}
+      end
     else
       nil -> {:error, {:unknown_id, anchor.ref}}
       {:error, _} = err -> err

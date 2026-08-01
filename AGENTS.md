@@ -71,6 +71,7 @@ These are hard rules, not policy:
 - **Delete**: terminal for anchors referencing the id. Relocation is policy, not transport.
 - **Retime**: carries `old_span` / `new_span` so warp construction has its inputs. Structure and identity are unaffected.
 - **ids are never reused**: a deleted id stays dead in `Space.seen` (a `MapSet`). `{:error, {:id_reused, id}}` on attempt.
+- **refs must be live at `at_version`**: an `Insert` (or a ref-creating `Split`) inside the folded log range means the anchor predates the ref — `{:error, {:unknown_ref, id}}`, same as a dangling head ref.
 
 ## Error Handling Pattern
 

@@ -44,7 +44,17 @@ defmodule Tamale.Digest do
   defp do_encode(true), do: {:ok, ~c"true"}
   defp do_encode(false), do: {:ok, ~c"false"}
   defp do_encode(i) when is_integer(i), do: {:ok, Integer.to_string(i)}
-  defp do_encode(b) when is_binary(b), do: {:ok, [?", escape(b), ?"]}
+
+  # A canonical string is valid UTF-8 — other languages (Rust String, TS
+  # JSON) cannot even represent an invalid byte string, so it is rejected
+  # like any non-canonical value.
+  defp do_encode(b) when is_binary(b) do
+    if String.valid?(b) do
+      {:ok, [?", escape(b), ?"]}
+    else
+      {:error, {:non_canonical, b}}
+    end
+  end
 
   defp do_encode(list) when is_list(list) do
     with {:ok, parts} <- map_ok(list, &do_encode/1) do
@@ -67,9 +77,18 @@ defmodule Tamale.Digest do
   defp do_encode(other), do: {:error, {:non_canonical, other}}
 
   # Atom keys are an Elixir-side convenience, encoded as their name;
-  # vectors and other languages use binary keys only.
+  # vectors and other languages use binary keys only. Keys are strings,
+  # so the same UTF-8 validity rule applies to them.
   defp name_key({key, value}) when is_atom(key), do: {:ok, {Atom.to_string(key), value}}
-  defp name_key({key, value}) when is_binary(key), do: {:ok, {key, value}}
+
+  defp name_key({key, value}) when is_binary(key) do
+    if String.valid?(key) do
+      {:ok, {key, value}}
+    else
+      {:error, {:non_canonical_key, key}}
+    end
+  end
+
   defp name_key({key, _value}), do: {:error, {:non_canonical_key, key}}
 
   defp unique_keys(named) do

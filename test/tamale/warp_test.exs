@@ -113,6 +113,21 @@ defmodule Tamale.WarpTest do
     assert {:ok, {{5, 1}, {35, 1}}} = Warp.map_interval(w, 5, 15)
   end
 
+  test "map_interval: an interval starting at a jump boundary maps from the arriving piece" do
+    {:ok, w} = Warp.from_segments([{{0, 10}, {0, 10}}, {{10, 20}, {30, 40}}])
+    # the departing piece contributes only measure-zero contact at 10
+    assert {:ok, {{30, 1}, {35, 1}}} = Warp.map_interval(w, 10, 15)
+    # intervals and points ending at the boundary still belong to it
+    assert {:ok, {{5, 1}, {10, 1}}} = Warp.map_interval(w, 5, 10)
+    assert {:ok, {{10, 1}, {10, 1}}} = Warp.map_interval(w, 10, 10)
+  end
+
+  test "map_interval: a clip fragment starting at a jump boundary uses the arriving piece" do
+    {:ok, w} = Warp.from_segments([{{0, 10}, {0, 10}}, {{10, 15}, {30, 35}}])
+
+    assert {:clip, [{{30, 1}, {35, 1}}], [{{15, 1}, {20, 1}}]} = Warp.map_interval(w, 10, 20)
+  end
+
   test "map_interval clips with covered images and lost old intervals" do
     # ripple delete of [10, 20]: [20, 30] slides down to [10, 20]
     {:ok, w} = Warp.from_segments([{{0, 10}, {0, 10}}, {{20, 30}, {10, 20}}])

@@ -39,6 +39,13 @@ defmodule Tamale.AnchorTest do
     assert {:error, {:invalid_coordinate, 1000.5}} = Anchor.project(anchor, :ms, float_span)
   end
 
+  test "project rejects inverted offset intervals" do
+    anchor = %Relative{ref: :phoneme_3, from_offset: 5, to_offset: 2}
+    span_fun = fn :phoneme_3 -> {1000, 1200} end
+
+    assert {:error, :invalid_interval} = Anchor.project(anchor, :ms, span_fun)
+  end
+
   test "project reports unknown hosts" do
     anchor = %Relative{ref: :ghost, from_offset: 0, to_offset: 10}
 
