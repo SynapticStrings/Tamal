@@ -56,7 +56,7 @@ Space  ──→  Op  ──→  Anchor + Transport  ──→  Patch
 
 ## Conformance Vectors
 
-`test/conformance/*.json` contains 35+ scenarios across five families: `space.json`, `ordinal.json`, `metric.json`, `relative.json`, `patch.json`. These are the **cross-language contract** — any implementation (Elixir, Rust, TS) is conformant when it reproduces every scenario's expected results.
+`test/conformance/*.json` contains 40 scenarios across five families: `space.json`, `ordinal.json`, `metric.json`, `relative.json`, `patch.json`. These are the **cross-language contract** — any implementation (Elixir, Rust, TS) is conformant when it reproduces every scenario's expected results.
 
 The Elixir runner is `test/conformance_test.exs` (`Tamale.ConformanceRunner`). Vectors are loaded at compile time via `@external_resource` and generate one ExUnit test per scenario.
 

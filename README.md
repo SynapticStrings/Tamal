@@ -85,7 +85,7 @@ Working and tested:
   floats/structs/tuples rejected; atom keys encoded by name; spec +
   worked examples in `docs/spec/canonical-digest.md`)
 - `ChannelAdapter.warp_payload/2` — the single channel-adapter callback
-- JSON conformance vectors (`test/conformance/`, format v1): 36 scenarios
+- JSON conformance vectors (`test/conformance/`, format v1): 40 scenarios
   across space/ordinal/metric/relative/digest/resolve, seeded from
   zongzi's `GOLDEN_SCENARIOS.md` including the deliberate semantic flips
   (G-AN-02 merge, G-INT-05 seconds anchor). Coordinates travel as
