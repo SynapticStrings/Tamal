@@ -25,6 +25,9 @@ defmodule Tamale do
   @typedoc "Element identity. Stable, never reused within a `Tamale.Space`."
   @type id :: term()
 
+  @typedoc "Element identity for something."
+  @type id(_t) :: id()
+
   @typedoc "Space version; increments by one per applied op batch."
   @type version :: non_neg_integer()
 end
