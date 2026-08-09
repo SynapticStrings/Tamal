@@ -213,6 +213,18 @@ defmodule Tamale.TransportTest do
     assert {:ok, {20, 1}} = Warp.at(warp, 10)
   end
 
+  test "provider error aborts the fold and surfaces as the transport result" do
+    s = Space.new!([:a])
+    {:ok, s} = Space.apply_op(s, %Retime{id: :a, old_span: {0, 10}, new_span: {0, 20}})
+
+    provider = fn :tick, _entry -> {:error, :warp_construction_failed} end
+
+    assert {:error, :warp_construction_failed} = Transport.fold_warp(:tick, s, 0, provider)
+
+    metric = %Metric{coord: :tick, from: 0, to: 5, at_version: 0}
+    assert {:error, :warp_construction_failed} = Transport.transport(metric, s, provider)
+  end
+
   test "fold_warp at head is identity and reports version errors" do
     {:ok, s} =
       Space.new!([:a]) |> Space.apply_op(%Retime{id: :a, old_span: {0, 10}, new_span: {0, 20}})
