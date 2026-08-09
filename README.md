@@ -1,5 +1,7 @@
 # Tamale
 
+[![zread](https://img.shields.io/badge/Ask-Zread-green)](https://zread.ai/SynapticStrings/Tamal)
+
 zongzi isn't 🫔 — this one is.
 
 A minimal kernel for preserving **user edits across upstream regeneration
