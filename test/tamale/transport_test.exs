@@ -135,7 +135,7 @@ defmodule Tamale.TransportTest do
 
     # caller-side ripple: a stretches to {0, 15}, b slides to {15, 25}
     {:ok, w} = Warp.from_segments([{{0, 10}, {0, 15}}, {{10, 20}, {15, 25}}])
-    provider = fn :tick, {1, _ops} -> w end
+    provider = fn :tick, {1, _ops} -> {:ok, w} end
 
     metric = %Metric{coord: :tick, from: 5, to: 10, at_version: 0}
 
@@ -149,8 +149,8 @@ defmodule Tamale.TransportTest do
     {:ok, s} = Space.apply_op(s, %Retime{id: :a, old_span: {0, 20}, new_span: {10, 20}})
 
     provider = fn
-      :tick, {1, _ops} -> Warp.from_span({0, 10}, {0, 20})
-      :tick, {2, _ops} -> Warp.from_span({0, 20}, {10, 20})
+      :tick, {1, _ops} -> {:ok, Warp.from_span({0, 10}, {0, 20})}
+      :tick, {2, _ops} -> {:ok, Warp.from_span({0, 20}, {10, 20})}
     end
 
     metric = %Metric{coord: :tick, from: 0, to: 10, at_version: 0}
@@ -163,7 +163,7 @@ defmodule Tamale.TransportTest do
     {:ok, s} = Space.new!([:a, :b]) |> Space.apply_op(%Delete{id: :b})
 
     # b spanned {10, 20}; nothing follows, so the warp only covers a
-    provider = fn :tick, _entry -> Warp.from_span({0, 10}, {0, 10}) end
+    provider = fn :tick, _entry -> {:ok, Warp.from_span({0, 10}, {0, 10})} end
     metric = %Metric{coord: :tick, from: 5, to: 15, at_version: 0}
 
     assert {:clip, [%Metric{from: {5, 1}, to: {10, 1}, at_version: 1}], [{{10, 1}, {15, 1}}]} =
@@ -172,7 +172,7 @@ defmodule Tamale.TransportTest do
 
   test "metric transport is undefined when the support leaves the warp domain" do
     {:ok, s} = Space.new!([:a, :b]) |> Space.apply_op(%Delete{id: :b})
-    provider = fn :tick, _entry -> Warp.from_span({0, 10}, {0, 10}) end
+    provider = fn :tick, _entry -> {:ok, Warp.from_span({0, 10}, {0, 10})} end
     metric = %Metric{coord: :tick, from: 10, to: 20, at_version: 0}
     assert {:undefined, :outside_warp} = Transport.transport(metric, s, provider)
   end
@@ -188,7 +188,7 @@ defmodule Tamale.TransportTest do
 
   test "metric anchors reject float endpoints and inverted intervals" do
     s = Space.new!([:a])
-    provider = fn _coord, _entry -> Warp.identity() end
+    provider = fn _coord, _entry -> {:ok, Warp.identity()} end
 
     assert {:error, {:invalid_coordinate, 0.5}} =
              Transport.transport(%Metric{coord: :tick, from: 0.5, to: 8}, s, provider)
@@ -203,8 +203,8 @@ defmodule Tamale.TransportTest do
     {:ok, s} = Space.apply_op(s, %Retime{id: :a, old_span: {0, 20}, new_span: {10, 20}})
 
     provider = fn
-      :tick, {1, _ops} -> Warp.from_span({0, 10}, {0, 20})
-      :tick, {2, _ops} -> Warp.from_span({0, 20}, {10, 20})
+      :tick, {1, _ops} -> {:ok, Warp.from_span({0, 10}, {0, 20})}
+      :tick, {2, _ops} -> {:ok, Warp.from_span({0, 20}, {10, 20})}
     end
 
     # same composed warp as "metric transport composes warps across batches"
@@ -229,7 +229,7 @@ defmodule Tamale.TransportTest do
     {:ok, s} =
       Space.new!([:a]) |> Space.apply_op(%Retime{id: :a, old_span: {0, 10}, new_span: {0, 20}})
 
-    provider = fn :tick, _entry -> Warp.from_span({0, 10}, {0, 20}) end
+    provider = fn :tick, _entry -> {:ok, Warp.from_span({0, 10}, {0, 20})} end
 
     assert {:ok, warp} = Transport.fold_warp(:tick, s, 1, provider)
     assert warp == Warp.identity()

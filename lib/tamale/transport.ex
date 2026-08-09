@@ -40,8 +40,8 @@ defmodule Tamale.Transport do
 
   Metric anchors travel by warp, not by identity. The kernel holds no
   element spans and no tempo map, so the Caller supplies a
-  `warp_provider` — `(coord, log_entry) -> Warp.t() | {:error, term()}` — and
-  transport folds the per-entry warps into one (`Warp.compose/2`, oldest
+  `warp_provider` — `(coord, log_entry) -> {:ok, Warp.t()} | {:error, term()}` —
+  and transport folds the per-entry warps into one (`Warp.compose/2`, oldest
   first), then maps the anchor interval through it (`Warp.map_interval/2`).
   A provider `{:error, reason}` aborts the fold and surfaces as this
   transport's own `{:error, reason}` — a surfaced failure, never a crash.
@@ -77,7 +77,7 @@ defmodule Tamale.Transport do
   May return `{:error, reason}` when a warp cannot be constructed for the
   entry — the fold aborts and the error surfaces as the transport result.
   """
-  @type warp_provider :: (term(), Space.entry() -> Warp.t() | {:error, term()})
+  @type warp_provider :: (term(), Space.entry() -> {:ok, Warp.t()} | {:error, term()})
 
   @type result ::
           {:ok, Anchor.t()}
@@ -190,11 +190,8 @@ defmodule Tamale.Transport do
     with {:ok, entries} <- Space.log_from(space, from_version) do
       Enum.reduce_while(entries, {:ok, Warp.identity()}, fn entry, {:ok, acc} ->
         case warp_provider.(coord, entry) do
-          {:error, reason} -> {:halt, {:error, reason}}
           {:ok, warp} -> {:cont, {:ok, Warp.compose(warp, acc)}}
-
-          # When API consolidated, remove this
-          warp -> {:cont, {:ok, Warp.compose(warp, acc)}}
+          {:error, reason} -> {:halt, {:error, reason}}
         end
       end)
     end

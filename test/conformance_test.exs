@@ -213,7 +213,7 @@ defmodule Tamale.ConformanceRunner do
     fn coord, {version, _ops} ->
       case Map.get(table, {coord, version}) do
         nil ->
-          Warp.identity()
+          {:ok, Warp.identity()}
 
         segments ->
           segs =
@@ -223,7 +223,7 @@ defmodule Tamale.ConformanceRunner do
 
           case Warp.from_segments(segs) do
             {:ok, warp} ->
-              warp
+              {:ok, warp}
 
             {:error, reason} ->
               raise "invalid warp in vector (coord #{inspect(coord)}, entry #{version}): #{inspect(reason)}"
