@@ -11,22 +11,11 @@ defmodule Tamale.MixProject do
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       aliases: [precommit: ["compile --warnings-as-errors", "format", "test"]],
-      deps: deps(),
       description: @description
     ]
   end
 
-  def application do
-    [
-      extra_applications: [:logger, :crypto]
-    ]
-  end
+  def application, do: [extra_applications: [:logger, :crypto]]
 
-  def cli do
-    [preferred_envs: [precommit: :test]]
-  end
-
-  defp deps do
-    []
-  end
+  def cli, do: [preferred_envs: [precommit: :test]]
 end
