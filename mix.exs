@@ -14,7 +14,7 @@ defmodule Tamale.MixProject do
       description: @description,
       package: [
         name: :tamale,
-        files: ~w(README* CHANGELOG docs lib mix.exs),
+        files: ~w(README.md CHANGELOG.md docs lib mix.exs),
         licenses: ["MIT"],
         links: %{"GitHub" => "https://github.com/SynapticStrings/Tamal"}
       ]
