@@ -11,7 +11,13 @@ defmodule Tamale.MixProject do
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       aliases: [precommit: ["compile --warnings-as-errors", "format", "test"]],
-      description: @description
+      description: @description,
+      package: [
+        name: :tamale,
+        files: ~w(README* lib mix.exs),
+        licenses: ["MIT"],
+        links: %{"GitHub" => "https://github.com/SynapticStrings/Tamal"}
+      ]
     ]
   end
 
